@@ -13,29 +13,26 @@ require "#{Knj::Os.homedir}/example_knj_db_dump_settings.rb"
 db = Knj::Db.new($db_settings)
 
 #Get list of databases.
-dbs = []
-db.q("SHOW DATABASES") do |data|
-  dbs << data[:Database]
-end
+tables = db.tables.list.values
 
-dbs_per_thread = (dbs.length.to_f / 10.0).ceil
-print "DBs per thread: #{dbs_per_thread}\n"
+tables_per_thread = (tables.length.to_f / 10.0).ceil
+print "Tables per thread: #{tables_per_thread}\n"
 
 threads = []
 1.upto(1) do |i|
   threads << Thread.new do
     begin
-      thread_dbs = dbs.shift(dbs_per_thread)
+      thread_tables = tables.shift(tables_per_thread)
       
-      Ruby_process.new.spawn_process do |rp|
+      Ruby_process.new(:debug => true).spawn_process do |rp|
         rp.static(:Object, :require, "rubygems")
         rp.static(:Object, :require, "knjrbfw")
         
         fpath = "/tmp/dbdump_#{i}.sql"
         
-        thread_dbs.each do |thread_db|
-          rp_db = rp.new("Knj::Db", $db_settings.merge(:db => thread_db))
-          rp_dump = rp.new("Knj::Db::Dump", :db => rp_db)
+        thread_tables.each do |thread_db|
+          rp_db = rp.new("Knj::Db", $db_settings)
+          rp_dump = rp.new("Knj::Db::Dump", :db => rp_db, :tables => thread_tables)
           
           rp.static(:File, :open, fpath, "w") do |rp_fp|
             print "#{i} dumping #{thread_db}\n"

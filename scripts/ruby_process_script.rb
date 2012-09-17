@@ -7,13 +7,28 @@ $stdin.sync = true
 $stdout.sync = true
 $stderr.sync = true
 
+debug = false
+pid = nil
+
+ARGV.each do |arg|
+  if arg == "--debug"
+    debug = true
+  elsif match = arg.match(/--pid=(\d+)/)
+    pid = match[1].to_i
+  else
+    raise "Unknown argument: '#{arg}'."
+  end
+end
+
 debug = true if ARGV.index("--debug") != nil
+raise "No PID given of parent process." if !pid
 
 rps = Ruby_process.new(
   :in => $stdin,
   :out => $stdout,
   :err => $stderr,
-  :debug => debug
+  :debug => debug,
+  :pid => pid
 )
 rps.listen
 $stdout.puts("ruby_process_started")

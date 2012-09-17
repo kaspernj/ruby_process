@@ -5,7 +5,7 @@ class Ruby_process
     block_ele = @objects[obj[:block_id]]
     raise "No block by that ID: '#{obj[:block_id]}'." if !block_ele
     raise "Not a block? '#{block_ele.class.name}'." if !block_ele.respond_to?(:call)
-    $stderr.print "Calling block #{obj[:block_id]}: #{obj}\n" if @debug
+    debug "Calling block #{obj[:block_id]}: #{obj}\n" if @debug
     block_ele.call(*read_args(obj[:args]))
     return nil
   end
@@ -47,7 +47,7 @@ class Ruby_process
     eval_full = eval_str + eval_argsarr
     eval_full << "}"
     
-    $stderr.print "Block eval: #{eval_full}\n" if @debug
+    debug "Block eval: #{eval_full}\n" if @debug
     dynamic_proc = eval(eval_full)
     
     return dynamic_proc

@@ -1,4 +1,27 @@
 class Ruby_process
+  #Recursivly parses arrays and hashes into proxy-object-hashes.
+  def parse_args(args)
+    if args.is_a?(Array)
+      newarr = []
+      args.each do |val|
+        newarr << parse_args(val)
+      end
+      
+      return newarr
+    elsif args.is_a?(Hash)
+      newh = {}
+      args.each do |key, val|
+        newh[parse_args(key)] = parse_args(val)
+      end
+      
+      return newh
+    elsif @args_allowed.index(args.class) != nil
+      return args
+    else
+      return handle_return_object(args)
+    end
+  end
+  
   private
   
   #Returns a special hash instead of an actual object. Some objects will be returned in their normal form (true, false and nil).
@@ -30,29 +53,6 @@ class Ruby_process
     return newa
   end
   
-  #Recursivly parses arrays and hashes into proxy-object-hashes.
-  def parse_args(args)
-    if args.is_a?(Array)
-      newarr = []
-      args.each do |val|
-        newarr << parse_args(val)
-      end
-      
-      return newarr
-    elsif args.is_a?(Hash)
-      newh = {}
-      args.each do |key, val|
-        newh[parse_args(key)] = parse_args(val)
-      end
-      
-      return newh
-    elsif @args_allowed.index(args.class) != nil
-      return args
-    else
-      return handle_return_object(args)
-    end
-  end
-  
   #Recursivly scans arrays and hashes for proxy-object-hashes and replaces them with actual proxy-objects.
   def read_args(args)
     if args.is_a?(Array)
@@ -62,7 +62,7 @@ class Ruby_process
       end
       
       return newarr
-    elsif args.is_a?(Hash) and args.length == 3 and args[:type] == :proxy_obj and args.key?(:id)
+    elsif args.is_a?(Hash) and args.length == 3 and args[:type] == :proxy_obj and args.key?(:id) and args.key?(:pid)
       debug "Comparing PID (#{args[:pid]}, #{@my_pid}).\n" if @debug
       
       if args[:pid] == @my_pid
@@ -74,7 +74,7 @@ class Ruby_process
       end
     elsif args.is_a?(Hash)
       newh = {}
-      newh.each do |key, val|
+      args.each do |key, val|
         newh[read_args(key)] = read_args(val)
       end
       

@@ -18,6 +18,15 @@ describe "RubyProcess" do
     raise "Expected 5" if arr[2] != 5
   end
   
+  it "should be able to pass proxy-objects as arguments." do
+    str = $rp.new(:String, "/tmp/somefile")
+    $rp.static(:File, :open, str, "w") do |fp|
+      fp.write("Test!")
+    end
+    
+    raise "Unexpected" if File.read(str.__rp_marshal) != "Test!"
+  end
+  
   it "should be able to write files" do
     fpath = "/tmp/ruby_process_file_write_test"
     fp = $rp.static(:File, :open, fpath, "w")
@@ -33,7 +42,7 @@ describe "RubyProcess" do
   
   it "should be able to do static calls" do
     pid = $rp.static(:Process, :pid).__rp_marshal
-    raise "Expected stuff to be finalized but it wasnt." if $rp.finalize_count <= 0
+    raise "Expected stuff to be finalized but it wasnt." if $rp.finalize_count <= 0 if RUBY_ENGINE != "jruby"
     raise "Unexpcted" if !pid.is_a?(Fixnum) and !pid.is_a?(Integer)
   end
   

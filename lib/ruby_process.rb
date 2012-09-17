@@ -1,15 +1,20 @@
 require "rubygems"
 require "base64"
-require "wref"
-require "tsafe"
+require "wref" if !Kernel.const_defined?(:Wref)
+require "tsafe" if !Kernel.const_defined?(:Tsafe)
 
 #This class can communicate with another Ruby-process. It tries to integrate the work in the other process as seamless as possible by using proxy-objects.
 class Ruby_process
+  attr_reader :finalize_count
+  
   #Require all the different commands.
   dir = "#{File.dirname(__FILE__)}/../cmds"
   Dir.foreach(dir) do |file|
     require "#{dir}/#{file}" if file =~ /\.rb$/
   end
+  
+  #Methods for handeling arguments and proxy-objects in arguments.
+  require "#{File.dirname(__FILE__)}/../include/args_handeling.rb"
   
   #Constructor.
   #===Examples
@@ -19,6 +24,7 @@ class Ruby_process
   def initialize(args = {})
     @args = args
     @debug = @args[:debug]
+    @pid = @args[:pid]
     
     #These classes are allowed in call-arguments. They can be marshalled without any errors.
     @args_allowed = [FalseClass, Fixnum, Integer, NilClass, String, Symbol, TrueClass]
@@ -39,10 +45,14 @@ class Ruby_process
     @proxy_objs_ids = Tsafe::MonHash.new
     @proxy_objs_unsets = Tsafe::MonArray.new
     @flush_mutex = Mutex.new
+    @finalize_count = 0
     
     #Send ID is used to identify the correct answers.
     @send_mutex = Mutex.new
     @send_count = 0
+    
+    #The PID is used to know which process proxy-objects belongs to.
+    @my_pid = Process.pid
   end
   
   #Spawns a new process in the same Ruby-inteterpeter as the current one.
@@ -51,19 +61,20 @@ class Ruby_process
   # rp.str_eval("return 10").__rp_marshal #=> 10
   # rp.destroy
   def spawn_process(args = nil)
+    #Used for printing debug-stuff.
+    @main = true
+    
     if args and args[:exec]
       cmd = "#{args[:exec]}"
     else
       cmd = "ruby"
     end
     
-    cmd << " \"#{File.dirname(__FILE__)}/../scripts/ruby_process_script.rb\""
-    
-    if @args[:debug]
-      cmd << " --debug"
-    end
+    cmd << " \"#{File.realpath(File.dirname(__FILE__))}/../scripts/ruby_process_script.rb\" --pid=#{@my_pid}"
+    cmd << " --debug" if @args[:debug]
     
     #Start process and set IO variables.
+    require "open3"
     @io_out, @io_in, @io_err = Open3.popen3(cmd)
     @io_out = Tsafe::Proxy.new(:obj => @io_out)
     @io_out.sync = true
@@ -77,7 +88,7 @@ class Ruby_process
         break
       end
       
-      $stderr.print "Ruby-process-debug from stdout before started: #{str}" if @debug
+      debug "Ruby-process-debug from stdout before started: '#{str}'\n" if @debug
     end
     
     raise "Ruby-sub-process couldnt start: '#{@io_err.read}'." if !started
@@ -122,10 +133,12 @@ class Ruby_process
       raise e if e.message != "Process is dead." and e.message != "Not listening."
     end
     
-    #Kill it and make sure its dead...
+    #Make main kill it and make sure its dead...
     begin
-      Process.kill("TERM", @pid)
-      Process.kill(9, @pid)
+      if @main and @pid
+        Process.kill("TERM", @pid)
+        Process.kill(9, @pid)
+      end
     rescue Errno::ESRCH
       #Process is already dead - ignore.
     end
@@ -133,11 +146,11 @@ class Ruby_process
   
   #Joins the listen thread and error-thread. This is useually only called on the sub-process side, but can also be useful, if you are waiting for a delayed callback from the subprocess.
   def join
-    $stderr.print "Joining listen-thread.\n" if @debug
+    debug "Joining listen-thread.\n" if @debug
     @thr_listen.join if @thr_listen
     raise @listen_err if @listen_err
     
-    $stderr.print "Joining error-thread.\n" if @debug
+    debug "Joining error-thread.\n" if @debug
     @thr_err.join if @thr_join
     raise @listen_err_err if @listen_err_err
   end
@@ -170,7 +183,7 @@ class Ruby_process
       @send_count += 1
     end
     
-    $stderr.print "Ruby-process-debug: Sending(#{id}): #{obj}\n" if @debug
+    debug "Sending(#{id}): #{obj}\n" if @debug
     line = Base64.strict_encode64(Marshal.dump(
       :id => id,
       :type => :send,
@@ -183,75 +196,16 @@ class Ruby_process
   
   private
   
-  #Returns a special hash instead of an actual object. Some objects will be returned in their normal form (true, false and nil).
-  def handle_return_object(obj)
-    #Dont proxy these objects.
-    if obj.is_a?(TrueClass) or obj.is_a?(FalseClass) or obj.is_a?(NilClass)
-      return obj
-    end
+  def debug(str_full)
+    raise "Debug not enabled?" if !@debug
     
-    id = obj.__id__
-    if !@objects.key?(id)
-      @objects[id] = obj
-    end
-    
-    return {:type => :proxy_obj, :id => id}
-  end
-  
-  #Parses an argument array to proxy-object-hashes.
-  def handle_return_args(arr)
-    newa = []
-    arr.each do |obj|
-      newa << handle_return_object(obj)
-    end
-    
-    return newa
-  end
-  
-  #Recursivly parses arrays and hashes into proxy-object-hashes.
-  def parse_args(args)
-    if args.is_a?(Array)
-      newarr = []
-      args.each do |val|
-        newarr << parse_args(val)
+    str_full.each_line do |str|
+      if @main
+        $stderr.print "(M#{@my_pid}) #{str}"
+      else
+        $stderr.print "(S#{@my_pid}) #{str}"
       end
-      
-      return newarr
-    elsif args.is_a?(Hash)
-      newh = {}
-      args.each do |key, val|
-        newh[parse_args(key)] = parse_args(val)
-      end
-      
-      return newh
-    elsif @args_allowed.index(args.class) != nil
-      return args
-    else
-      return handle_return_object(args)
     end
-  end
-  
-  #Recursivly scans arrays and hashes for proxy-object-hashes and replaces them with actual proxy-objects.
-  def read_args(args)
-    if args.is_a?(Array)
-      newarr = []
-      args.each do |val|
-        newarr << read_args(val)
-      end
-      
-      return newarr
-    elsif args.is_a?(Hash) and args.length == 2 and args[:type] == :proxy_obj and args.key?(:id)
-      return proxyobj_get(args[:id])
-    elsif args.is_a?(Hash)
-      newh = {}
-      newh.each do |key, val|
-        newh[read_args(key)] = read_args(val)
-      end
-      
-      return newh
-    end
-    
-    return args
   end
   
   #Returns true if the child process is still running. Otherwise false.
@@ -267,13 +221,14 @@ class Ruby_process
   end
   
   #Registers an object ID as a proxy-object on the host-side.
-  def proxyobj_get(id)
+  def proxyobj_get(id, pid = @my_pid)
     if proxy_obj = @proxy_objs.get!(id)
+      debug "Reuse proxy-obj (ID: #{id}, PID: #{pid}, fID: #{proxy_obj.args[:id]}, fPID: #{proxy_obj.args[:pid]})\n" if @debug
       return proxy_obj
     end
     
     @proxy_objs_unsets.delete(id)
-    proxy_obj = Ruby_process::Proxyobj.new(:rp => self, :id => id)
+    proxy_obj = Ruby_process::Proxyobj.new(:rp => self, :id => id, :pid => pid)
     @proxy_objs[id] = proxy_obj
     @proxy_objs_ids[proxy_obj.__id__] = id
     ObjectSpace.define_finalizer(proxy_obj, self.method(:proxyobj_finalizer))
@@ -281,16 +236,22 @@ class Ruby_process
     return proxy_obj
   end
   
+  def proxyobj_object(id)
+    obj = @objects[id]
+    raise "No object by that ID: '#{id}' (#{@objects})." if !obj
+    return obj
+  end
+  
   #Method used for detecting garbage-collected proxy-objects. This way we can also free references to them in the other process, so it doesnt run out of memory.
   def proxyobj_finalizer(id)
-    $stderr.print "Ruby-process-debug: Finalized #{id}\n" if @debug
+    debug "Finalized #{id}\n" if @debug
     proxy_id = @proxy_objs_ids[id]
     
     if !proxy_id
-      $stderr.print "No such ID in proxy objects IDs hash: '#{id}'.\n" if @debug
+      debug "No such ID in proxy objects IDs hash: '#{id}'.\n" if @debug
     else
       @proxy_objs_unsets << proxy_id
-      $stderr.print "Done finalizing #{id}\n" if @debug
+      debug "Done finalizing #{id}\n" if @debug
     end
     
     return nil
@@ -298,11 +259,11 @@ class Ruby_process
   
   #Waits for an answer to appear in the answers-hash. Then deletes it from hash and returns it.
   def answer_read(id)
-    $stderr.print "Ruby-process-debug: Waiting for answer #{id}\n" if @debug
+    debug "Waiting for answer #{id}\n" if @debug
     
     loop do
       if @answers.key?(id)
-        $stderr.print "Ruby-process-debug: Returning answer #{id}\n" if @debug
+        debug "Returning answer #{id}\n" if @debug
         answer = @answers[id]
         @answers.delete(id)
         
@@ -312,7 +273,7 @@ class Ruby_process
           rescue => e
             bt = []
             answer[:bt].each do |btline|
-              bt << "Ruby-subprocess: #{btline}"
+              bt << "(#{@pid}): #{btline}"
             end
             
             bt += e.backtrace
@@ -320,13 +281,13 @@ class Ruby_process
             raise e
           end
         elsif answer.is_a?(Hash) and answer[:type] == :proxy_obj and answer.key?(:id)
-          return proxyobj_get(answer[:id])
+          return proxyobj_get(answer[:id], answer[:pid])
         end
         
         return answer
       end
       
-      $stderr.print "No answer by ID #{id} - sleeping...\n" if @debug
+      debug "No answer by ID #{id} - sleeping...\n" if @debug
       sleep 0.01
       alive_check!
       raise @listen_err if @listen_err
@@ -341,11 +302,11 @@ class Ruby_process
         @io_in.each_line do |line|
           raise "No line?" if !line or line.to_s.strip.length <= 0
           alive_check!
-          $stderr.print "Ruby-process-debug: Received: #{line}" if @debug
+          debug "Received: #{line}" if @debug
           
           begin
             obj = Marshal.load(Base64.strict_decode64(line.strip))
-            $stderr.print "Ruby-process-debug: Object received: #{obj}\n" if @debug
+            debug "Object received: #{obj}\n" if @debug
           rescue => e
             $stderr.puts "Base64Str: #{line}" if @debug
             $stderr.puts e.inspect if @debug
@@ -368,7 +329,7 @@ class Ruby_process
               @io_out.puts(data)
             end
           elsif obj[:type] == :answer
-            $stderr.print "Ruby-process-debug: Answer #{obj[:id]} saved.\n" if @debug
+            debug "Answer #{obj[:id]} saved.\n" if @debug
             @answers[obj[:id]] = obj[:answer]
           else
             raise "Unknown object: '#{obj}'."
@@ -387,7 +348,7 @@ class Ruby_process
     @thr_err = Thread.new do
       begin
         @io_err.each_line do |str|
-          $stderr.print "Ruby-process-err: #{str}" if @debug
+          $stderr.print str if @debug
         end
       rescue => e
         @listen_err_err = e
@@ -398,6 +359,9 @@ end
 
 #This class handels the calling of methods on objects in the other process seamlessly.
 class Ruby_process::Proxyobj
+  #Hash that contains various information about the proxyobj.
+  attr_reader :args
+  
   #Constructor. This should not be called manually but through a running 'Ruby_process'.
   #===Examples
   # proxy_obj = rp.new(:String, "Kasper") #=> <Ruby_process::Proxyobj>
@@ -420,6 +384,10 @@ class Ruby_process::Proxyobj
   # length_int = str.length #=> <Ruby_process::Proxyobj::2>
   # length_int.__rp_marshal #=> 6
   def method_missing(method, *args, &block)
-    return @args[:rp].send(:cmd => :obj_method, :id => @args[:id], :method => method, :args => args, &block)
+    debug "Method-missing-args-before: #{args} (#{@my_pid})\n" if @debug
+    real_args = @args[:rp].parse_args(args)
+    debug "Method-missing-args-after: #{real_args}\n" if @debug
+    
+    return @args[:rp].send(:cmd => :obj_method, :id => @args[:id], :method => method, :args => real_args, &block)
   end
 end
