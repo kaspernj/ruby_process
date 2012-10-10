@@ -321,7 +321,8 @@ class Ruby_process
                 raise "Object was not a hash." if !obj.is_a?(Hash)
                 raise "No ID was given?" if !obj.key?(:id)
                 res = self.__send__("cmd_#{obj[:obj][:cmd]}", obj[:obj])
-              rescue => e
+              rescue Exception => e
+                raise e if e.is_a?(SystemExit) or e.is_a?(Interrupt)
                 res = {:type => :error, :class => e.class.name, :msg => e.message, :bt => e.backtrace}
               end
               
