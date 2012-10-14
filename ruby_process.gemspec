@@ -5,11 +5,11 @@
 
 Gem::Specification.new do |s|
   s.name = %q{ruby_process}
-  s.version = "0.0.4"
+  s.version = "0.0.5"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Kasper Johansen"]
-  s.date = %q{2012-10-10}
+  s.date = %q{2012-10-14}
   s.description = %q{A framework for spawning and communicating with other Ruby-processes}
   s.email = %q{k@spernj.org}
   s.extra_rdoc_files = [
@@ -36,8 +36,10 @@ Gem::Specification.new do |s|
     "examples/example_strscan.rb",
     "include/args_handeling.rb",
     "lib/ruby_process.rb",
+    "lib/ruby_process_cproxy.rb",
     "ruby_process.gemspec",
     "scripts/ruby_process_script.rb",
+    "spec/cproxy_spec.rb",
     "spec/ruby_process_spec.rb",
     "spec/spec_helper.rb"
   ]
