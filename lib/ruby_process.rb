@@ -16,6 +16,13 @@ class Ruby_process
   #Methods for handeling arguments and proxy-objects in arguments.
   require "#{File.dirname(__FILE__)}/../include/args_handeling.rb"
   
+  #Autoloader for subclasses.
+  def self.const_missing(name)
+    require "#{File.realpath(File.dirname(__FILE__))}/ruby_process_#{name.to_s.downcase}.rb"
+    raise "Still not defined: '#{name}'." if !self.const_defined?(name)
+    return self.const_get(name)
+  end
+  
   #Constructor.
   #===Examples
   # Ruby_process.new.spawn_process do |rp|
