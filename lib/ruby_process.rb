@@ -153,7 +153,19 @@ class Ruby_process
       end
     rescue Errno::ESRCH
       #Process is already dead - ignore.
+    ensure
+      @pid = nil
+      @io_out = nil
+      @io_in = nil
+      @io_err = nil
+      @main = nil
     end
+  end
+  
+  #Returns true if the Ruby process has been destroyed.
+  def destroyed?
+    return true if !@pid and !@io_out and !@io_in and !@io_err and @main == nil
+    return false
   end
   
   #Joins the listen thread and error-thread. This is useually only called on the sub-process side, but can also be useful, if you are waiting for a delayed callback from the subprocess.
@@ -219,6 +231,7 @@ class Ruby_process
   
   private
   
+  #Prints the given string to stderr. Raises error if debugging is not enabled.
   def debug(str_full)
     raise "Debug not enabled?" if !@debug
     
@@ -233,6 +246,7 @@ class Ruby_process
   
   #Raises an error if the subprocess is no longer alive.
   def alive_check!
+    raise "Has been destroyed." if self.destroyed?
     raise "No 'io_out'." if !@io_out
     raise "No 'io_in'." if !@io_in
     raise "'io_in' was closed." if @io_in.closed?
@@ -258,6 +272,7 @@ class Ruby_process
     return proxy_obj
   end
   
+  #Returns the saved proxy-object by the given ID. Raises error if it doesnt exist.
   def proxyobj_object(id)
     obj = @objects[id]
     raise "No object by that ID: '#{id}' (#{@objects})." if !obj

@@ -28,7 +28,7 @@ class Ruby_process::Cproxy
       @@instances += 1
       
       #Check if the sub-process is alive.
-      if @@subproc and !@@subproc.alive?
+      if @@subproc and !@@subproc.alive? and !@@subproc.destroyed?
         @@subproc.destroy
         @@subproc = nil
       end
