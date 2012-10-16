@@ -28,7 +28,7 @@ class Ruby_process::Cproxy
       @@instances += 1
       
       #Check if the sub-process is alive.
-      if @@subproc and !@@subproc.alive? and !@@subproc.destroyed?
+      if @@subproc and (!@@subproc.alive? or @@subproc.destroyed?)
         @@subproc.destroy
         @@subproc = nil
       end
@@ -42,6 +42,7 @@ class Ruby_process::Cproxy
     
     begin
       yield(:subproc => @@subproc)
+      raise "'run'-caller destroyed sub-process. This shouldn't happen." if @@subproc.destroyed?
     ensure
       @@lock.synchronize do
         @@instances -= 1

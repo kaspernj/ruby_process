@@ -139,6 +139,8 @@ class Ruby_process
   
   #First tries to make the sub-process exit gently. Then kills it with "TERM" and 9 afterwards to make sure its dead. If 'spawn_process' is given a block, this method is automatically ensured after the block is run.
   def destroy
+    return nil if self.destroyed?
+    
     begin
       send(:cmd => :exit) if alive?
     rescue => e
