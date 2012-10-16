@@ -13,8 +13,10 @@ pid = nil
 ARGV.each do |arg|
   if arg == "--debug"
     debug = true
-  elsif match = arg.match(/--pid=(\d+)/)
+  elsif match = arg.match(/--pid=(\d+)$/)
     pid = match[1].to_i
+  elsif match = arg.match(/--title=(.+)$/)
+    #ignore - its for finding process via 'ps aux'.
   else
     raise "Unknown argument: '#{arg}'."
   end

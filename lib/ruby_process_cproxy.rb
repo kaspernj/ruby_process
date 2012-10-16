@@ -27,8 +27,15 @@ class Ruby_process::Cproxy
     @@lock.synchronize do
       @@instances += 1
       
+      #Check if the sub-process is alive.
+      if @@subproc and !@@subproc.alive?
+        @@subproc.destroy
+        @@subproc = nil
+      end
+      
+      #Start a new subprocess if none is defined and active.
       if !@@subproc
-        @@subproc = Ruby_process.new
+        @@subproc = Ruby_process.new(:title => "cproxy")
         @@subproc.spawn_process
       end
     end

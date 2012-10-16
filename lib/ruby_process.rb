@@ -74,11 +74,16 @@ class Ruby_process
     if args and args[:exec]
       cmd = "#{args[:exec]}"
     else
-      cmd = "ruby"
+      if !ENV["rvm_ruby_string"].to_s.empty?
+        cmd = "#{ENV["rvm_ruby_string"]}"
+      else
+        cmd = "ruby"
+      end
     end
     
     cmd << " \"#{File.realpath(File.dirname(__FILE__))}/../scripts/ruby_process_script.rb\" --pid=#{@my_pid}"
     cmd << " --debug" if @args[:debug]
+    cmd << " \"--title=#{@args[:title]}\"" if !@args[:title].to_s.strip.empty?
     
     #Start process and set IO variables.
     require "open3"
@@ -201,6 +206,12 @@ class Ruby_process
     return answer_read(id)
   end
   
+  #Returns true if the child process is still running. Otherwise false.
+  def alive?
+    return false if !@io_out or !@io_in or @io_in.closed? or !@thr_listen or !@thr_listen.alive?
+    return true
+  end
+  
   private
   
   def debug(str_full)
@@ -213,12 +224,6 @@ class Ruby_process
         $stderr.print "(S#{@my_pid}) #{str}"
       end
     end
-  end
-  
-  #Returns true if the child process is still running. Otherwise false.
-  def alive?
-    return false if !@io_out or !@io_in or @io_in.closed?
-    return true
   end
   
   #Raises an error if the subprocess is no longer alive.
@@ -362,40 +367,5 @@ class Ruby_process
         @listen_err_err = e
       end
     end
-  end
-end
-
-#This class handels the calling of methods on objects in the other process seamlessly.
-class Ruby_process::Proxyobj
-  #Hash that contains various information about the proxyobj.
-  attr_reader :args
-  
-  #Constructor. This should not be called manually but through a running 'Ruby_process'.
-  #===Examples
-  # proxy_obj = rp.new(:String, "Kasper") #=> <Ruby_process::Proxyobj>
-  # proxy_obj = rp.static(:File, :open, "/tmp/somefile") #=> <Ruby_process::Proxyobj>
-  def initialize(args)
-    @args = args
-  end
-  
-  #Returns the object as the real object transfered by using the marshal-lib.
-  #===Examples
-  # str = rp.new(:String, "Kasper") #=> <Ruby_process::Proxyobj>
-  # str.__rp_marshal #=> "Kasper"
-  def __rp_marshal
-    return Marshal.load(@args[:rp].send(:cmd => :obj_marshal, :id => @args[:id]))
-  end
-  
-  #Proxies all calls to the process-object.
-  #===Examples
-  # str = rp.new(:String, "Kasper") #=> <Ruby_process::Proxyobj::1>
-  # length_int = str.length #=> <Ruby_process::Proxyobj::2>
-  # length_int.__rp_marshal #=> 6
-  def method_missing(method, *args, &block)
-    debug "Method-missing-args-before: #{args} (#{@my_pid})\n" if @debug
-    real_args = @args[:rp].parse_args(args)
-    debug "Method-missing-args-after: #{real_args}\n" if @debug
-    
-    return @args[:rp].send(:cmd => :obj_method, :id => @args[:id], :method => method, :args => real_args, &block)
   end
 end
