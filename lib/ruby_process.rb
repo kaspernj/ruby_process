@@ -253,7 +253,7 @@ class Ruby_process
     raise "No 'io_in'." if !@io_in
     raise "'io_in' was closed." if @io_in.closed?
     raise "No listen thread." if !@thr_listen
-    raise "Listen thread wasnt alive?" if !@thr_listen.alive?
+    #raise "Listen thread wasnt alive?" if !@thr_listen.alive?
     
     return nil
   end
