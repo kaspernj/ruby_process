@@ -122,7 +122,7 @@ class Ruby_process
         self.destroy
       end
       
-      return nil
+      return self
     else
       return self
     end
@@ -169,7 +169,7 @@ class Ruby_process
   
   #Sends a command to the other process. This should not be called manually, but is used by various other parts of the framework.
   def send(obj, &block)
-    raise "Ruby-process is dead." if !alive?
+    alive_check!
     
     #Parse block.
     if block
@@ -201,15 +201,20 @@ class Ruby_process
       :type => :send,
       :obj => obj
     ))
+    @answers[id] = Queue.new
     @io_out.puts(line)
-    sleep 0.001
+    
     return answer_read(id)
   end
   
   #Returns true if the child process is still running. Otherwise false.
   def alive?
-    return false if !@io_out or !@io_in or @io_in.closed? or !@thr_listen or !@thr_listen.alive?
-    return true
+    begin
+      self.alive_check!
+      return true
+    rescue
+      return false
+    end
   end
   
   private
@@ -228,7 +233,12 @@ class Ruby_process
   
   #Raises an error if the subprocess is no longer alive.
   def alive_check!
-    raise "Process is dead." unless alive?
+    raise "No 'io_out'." if !@io_out
+    raise "No 'io_in'." if !@io_in
+    raise "'io_in' was closed." if @io_in.closed?
+    raise "No listen thread." if !@thr_listen
+    raise "Listen thread wasnt alive?" if !@thr_listen.alive?
+    
     return nil
   end
   
@@ -272,39 +282,29 @@ class Ruby_process
   #Waits for an answer to appear in the answers-hash. Then deletes it from hash and returns it.
   def answer_read(id)
     debug "Waiting for answer #{id}\n" if @debug
+    answer = @answers[id].pop
     
-    loop do
-      if @answers.key?(id)
-        debug "Returning answer #{id}\n" if @debug
-        answer = @answers[id]
-        @answers.delete(id)
-        
-        if answer.is_a?(Hash) and answer[:type] == :error and answer.key?(:class) and answer.key?(:msg) and answer.key?(:bt)
-          begin
-            raise "#{answer[:class]}: #{answer[:msg]}"
-          rescue => e
-            bt = []
-            answer[:bt].each do |btline|
-              bt << "(#{@pid}): #{btline}"
-            end
-            
-            bt += e.backtrace
-            e.set_backtrace(bt)
-            raise e
-          end
-        elsif answer.is_a?(Hash) and answer[:type] == :proxy_obj and answer.key?(:id)
-          return proxyobj_get(answer[:id], answer[:pid])
+    debug "Returning answer #{id}\n" if @debug
+    @answers.delete(id)
+    
+    if answer.is_a?(Hash) and answer[:type] == :error and answer.key?(:class) and answer.key?(:msg) and answer.key?(:bt)
+      begin
+        raise "#{answer[:class]}: #{answer[:msg]}"
+      rescue => e
+        bt = []
+        answer[:bt].each do |btline|
+          bt << "(#{@pid}): #{btline}"
         end
         
-        return answer
+        bt += e.backtrace
+        e.set_backtrace(bt)
+        raise e
       end
-      
-      debug "No answer by ID #{id} - sleeping...\n" if @debug
-      sleep 0.01
-      alive_check!
-      raise @listen_err if @listen_err
-      raise "Not listening." if !@thr_listen or !@thr_listen.alive?
+    elsif answer.is_a?(Hash) and answer[:type] == :proxy_obj and answer.key?(:id)
+      return proxyobj_get(answer[:id], answer[:pid])
     end
+    
+    return answer
   end
   
   #Starts the listen-thread that listens for, and executes, commands.
@@ -341,9 +341,9 @@ class Ruby_process
               data = Base64.strict_encode64(Marshal.dump(:type => :answer, :id => obj[:id], :answer => res))
               @io_out.puts(data)
             end
-          elsif obj[:type] == :answer
-            debug "Answer #{obj[:id]} saved.\n" if @debug
-            @answers[obj[:id]] = obj[:answer]
+          elsif obj[:type] == :answer and id = obj[:id].to_i
+            debug "Answer #{id} saved.\n" if @debug
+            @answers[id] << obj[:answer]
           else
             raise "Unknown object: '#{obj}'."
           end
