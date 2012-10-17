@@ -17,7 +17,7 @@ class Ruby_process
     if obj.key?(:block)
       real_block = proc{|*args|
         debug "Block called! #{args}\n" if @debug
-        send(:cmd => :block_call, :block_id => obj[:block][:id], :args => handle_return_args(args))
+        send(:cmd => :block_call, :block_id => obj[:block][:id], :answer_id => obj[:send_id], :args => handle_return_args(args))
       }
       
       block = block_with_arity(:arity => obj[:block][:arity], &real_block)
