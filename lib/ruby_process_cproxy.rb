@@ -27,6 +27,7 @@ class Ruby_process::Cproxy
     @@lock.synchronize do
       #Check if the sub-process is alive.
       if @@subproc and (!@@subproc.alive? or @@subproc.destroyed?)
+        raise "Cant destroy sub-process because instances are running: '#{@@instances}'." if @@instances > 0
         @@subproc.destroy
         @@subproc = nil
       end

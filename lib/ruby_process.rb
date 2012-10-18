@@ -226,7 +226,7 @@ class Ruby_process
   #Returns true if the child process is still running. Otherwise false.
   def alive?
     begin
-      self.alive_check!
+      alive_check!
       return true
     rescue
       return false
@@ -234,6 +234,18 @@ class Ruby_process
   end
   
   private
+  
+  #Raises an error if the subprocess is no longer alive.
+  def alive_check!
+    raise "Has been destroyed." if self.destroyed?
+    raise "No 'io_out'." if !@io_out
+    raise "No 'io_in'." if !@io_in
+    raise "'io_in' was closed." if @io_in.closed?
+    raise "No listen thread." if !@thr_listen
+    #raise "Listen thread wasnt alive?" if !@thr_listen.alive?
+    
+    return nil
+  end
   
   #Prints the given string to stderr. Raises error if debugging is not enabled.
   def debug(str_full)
@@ -246,18 +258,6 @@ class Ruby_process
         $stderr.print "(S#{@my_pid}) #{str}"
       end
     end
-  end
-  
-  #Raises an error if the subprocess is no longer alive.
-  def alive_check!
-    raise "Has been destroyed." if self.destroyed?
-    raise "No 'io_out'." if !@io_out
-    raise "No 'io_in'." if !@io_in
-    raise "'io_in' was closed." if @io_in.closed?
-    raise "No listen thread." if !@thr_listen
-    #raise "Listen thread wasnt alive?" if !@thr_listen.alive?
-    
-    return nil
   end
   
   #Registers an object ID as a proxy-object on the host-side.
