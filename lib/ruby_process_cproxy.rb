@@ -34,8 +34,9 @@ class Ruby_process::Cproxy
       
       #Start a new subprocess if none is defined and active.
       if !@@subproc
-        @@subproc = Ruby_process.new(:title => "ruby_process_cproxy", :debug => false)
-        @@subproc.spawn_process
+        subproc = Ruby_process.new(:title => "ruby_process_cproxy", :debug => false)
+        subproc.spawn_process
+        @@subproc = subproc
       end
       
       @@instances += 1
@@ -49,8 +50,11 @@ class Ruby_process::Cproxy
         @@instances -= 1
         
         if @@instances <= 0
-          @@subproc.destroy
-          @@subproc = nil
+          begin
+            @@subproc.destroy
+          ensure
+            @@subproc = nil
+          end
         end
       end
     end

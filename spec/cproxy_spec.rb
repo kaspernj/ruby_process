@@ -22,7 +22,7 @@ describe "RubyProcess" do
   it "should be able to do multiple calls at once" do
     ts = []
     
-    1.upto(25) do
+    0.upto(9) do |tcount|
       ts << Thread.new do
         Ruby_process::Cproxy.run do |data|
           sp = data[:subproc]
@@ -44,13 +44,16 @@ describe "RubyProcess" do
             raise "Expected res2 to be true but it wasnt: '#{res2}'." if res2 != true
             raise "Expected res3 to be false but it wasnt: '#{res3}'." if res3 != false
             
-            print "."
+            print tcount
           end
         end
       end
     end
     
+    count = 0
     ts.each do |t|
+      count += 1
+      puts "Thread #{count}"
       t.join
     end
   end
