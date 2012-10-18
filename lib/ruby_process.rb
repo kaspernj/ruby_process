@@ -2,6 +2,7 @@ require "rubygems"
 require "base64"
 require "wref" if !Kernel.const_defined?(:Wref)
 require "tsafe" if !Kernel.const_defined?(:Tsafe)
+require "thread"
 
 #This class can communicate with another Ruby-process. It tries to integrate the work in the other process as seamless as possible by using proxy-objects.
 class Ruby_process
