@@ -6,7 +6,7 @@ require "thread"
 
 #This class can communicate with another Ruby-process. It tries to integrate the work in the other process as seamless as possible by using proxy-objects.
 class Ruby_process
-  attr_reader :finalize_count
+  attr_reader :finalize_count, :pid
   
   #Require all the different commands.
   dir = "#{File.dirname(__FILE__)}/../cmds"
@@ -141,27 +141,29 @@ class Ruby_process
   #First tries to make the sub-process exit gently. Then kills it with "TERM" and 9 afterwards to make sure its dead. If 'spawn_process' is given a block, this method is automatically ensured after the block is run.
   def destroy
     return nil if self.destroyed?
+    debug "Destroying Ruby-process (#{caller}).\n" if @debug
     
     begin
+      #Send exit-command to sub-process.
       send(:cmd => :exit) if alive?
     rescue => e
       raise e if e.message != "Process is dead." and e.message != "Not listening."
-    end
-    
-    #Make main kill it and make sure its dead...
-    begin
-      if @main and @pid
-        Process.kill("TERM", @pid)
-        Process.kill(9, @pid)
-      end
-    rescue Errno::ESRCH
-      #Process is already dead - ignore.
     ensure
-      @pid = nil
-      @io_out = nil
-      @io_in = nil
-      @io_err = nil
-      @main = nil
+      #Make main kill it and make sure its dead...
+      begin
+        if @main and @pid
+          Process.kill("TERM", @pid)
+          Process.kill(9, @pid)
+        end
+      rescue Errno::ESRCH
+        #Process is already dead - ignore.
+      ensure
+        @pid = nil
+        @io_out = nil
+        @io_in = nil
+        @io_err = nil
+        @main = nil
+      end
     end
   end
   
@@ -186,9 +188,16 @@ class Ruby_process
   def send(obj, &block)
     alive_check!
     
+    #Sync ID stuff so they dont get mixed up.
+    id = nil
+    @send_mutex.synchronize do
+      id = @send_count
+      @send_count += 1
+    end
+    
     #Parse block.
     if block
-      block_proxy_res = self.send(:cmd => :spawn_proxy_block, :id => block.__id__)
+      block_proxy_res = self.send(:cmd => :spawn_proxy_block, :id => block.__id__, :answer_id => id)
       raise "No block ID was returned?" if !block_proxy_res[:id]
       raise "Invalid block-ID: '#{block_proxy_res[:id]}'." if block_proxy_res[:id].to_i <= 0
       @proxy_objs[block_proxy_res[:id]] = block
@@ -202,13 +211,6 @@ class Ruby_process
     end
     
     flush_finalized if obj[:cmd] != :flush_finalized
-    
-    #Sync ID stuff so they dont get mixed up.
-    id = nil
-    @send_mutex.synchronize do
-      id = @send_count
-      @send_count += 1
-    end
     
     debug "Sending(#{id}): #{obj}\n" if @debug
     line = Base64.strict_encode64(Marshal.dump(
@@ -225,7 +227,7 @@ class Ruby_process
   #Returns true if the child process is still running. Otherwise false.
   def alive?
     begin
-      self.alive_check!
+      alive_check!
       return true
     rescue
       return false
@@ -233,6 +235,18 @@ class Ruby_process
   end
   
   private
+  
+  #Raises an error if the subprocess is no longer alive.
+  def alive_check!
+    raise "Has been destroyed." if self.destroyed?
+    raise "No 'io_out'." if !@io_out
+    raise "No 'io_in'." if !@io_in
+    raise "'io_in' was closed." if @io_in.closed?
+    raise "No listen thread." if !@thr_listen
+    #raise "Listen thread wasnt alive?" if !@thr_listen.alive?
+    
+    return nil
+  end
   
   #Prints the given string to stderr. Raises error if debugging is not enabled.
   def debug(str_full)
@@ -245,18 +259,6 @@ class Ruby_process
         $stderr.print "(S#{@my_pid}) #{str}"
       end
     end
-  end
-  
-  #Raises an error if the subprocess is no longer alive.
-  def alive_check!
-    raise "Has been destroyed." if self.destroyed?
-    raise "No 'io_out'." if !@io_out
-    raise "No 'io_in'." if !@io_in
-    raise "'io_in' was closed." if @io_in.closed?
-    raise "No listen thread." if !@thr_listen
-    raise "Listen thread wasnt alive?" if !@thr_listen.alive?
-    
-    return nil
   end
   
   #Registers an object ID as a proxy-object on the host-side.
@@ -299,30 +301,42 @@ class Ruby_process
   
   #Waits for an answer to appear in the answers-hash. Then deletes it from hash and returns it.
   def answer_read(id)
-    debug "Waiting for answer #{id}\n" if @debug
-    answer = @answers[id].pop
-    
-    debug "Returning answer #{id}\n" if @debug
-    @answers.delete(id)
-    
-    if answer.is_a?(Hash) and answer[:type] == :error and answer.key?(:class) and answer.key?(:msg) and answer.key?(:bt)
-      begin
-        raise "#{answer[:class]}: #{answer[:msg]}"
-      rescue => e
-        bt = []
-        answer[:bt].each do |btline|
-          bt << "(#{@pid}): #{btline}"
-        end
+    begin
+      loop do
+        debug "Waiting for answer #{id}\n" if @debug
+        answer = @answers[id].pop
+        debug "Returning answer #{id}\n" if @debug
         
-        bt += e.backtrace
-        e.set_backtrace(bt)
-        raise e
+        if answer.is_a?(Hash)
+          if answer[:type] == :error and answer.key?(:class) and answer.key?(:msg) and answer.key?(:bt)
+            begin
+              raise "#{answer[:class]}: #{answer[:msg]}"
+            rescue => e
+              bt = []
+              answer[:bt].each do |btline|
+                bt << "(#{@pid}): #{btline}"
+              end
+              
+              bt += e.backtrace
+              e.set_backtrace(bt)
+              raise e
+            end
+          elsif answer[:type] == :proxy_obj and answer.key?(:id) and answer.key?(:pid)
+            return proxyobj_get(answer[:id], answer[:pid])
+          elsif answer[:type] == :proxy_block_call
+            answer[:block].call(*answer[:args])
+          else
+            return answer
+          end
+        else
+          return answer
+        end
       end
-    elsif answer.is_a?(Hash) and answer[:type] == :proxy_obj and answer.key?(:id)
-      return proxyobj_get(answer[:id], answer[:pid])
+    ensure
+      @answers.delete(id)
     end
     
-    return answer
+    raise "This should never be reached."
   end
   
   #Starts the listen-thread that listens for, and executes, commands.
@@ -330,7 +344,7 @@ class Ruby_process
     @thr_listen = Thread.new do
       begin
         @io_in.each_line do |line|
-          raise "No line?" if !line or line.to_s.strip.length <= 0
+          raise "No line?" if !line or line.to_s.strip.empty?
           alive_check!
           debug "Received: #{line}" if @debug
           
@@ -345,21 +359,25 @@ class Ruby_process
             raise e
           end
           
+          id = obj[:id]
+          
           if obj[:type] == :send
+            obj[:obj][:send_id] = id
+            
             Thread.new do
               begin
                 raise "Object was not a hash." if !obj.is_a?(Hash)
-                raise "No ID was given?" if !obj.key?(:id)
+                raise "No ID was given?" if !id
                 res = self.__send__("cmd_#{obj[:obj][:cmd]}", obj[:obj])
               rescue Exception => e
                 raise e if e.is_a?(SystemExit) or e.is_a?(Interrupt)
                 res = {:type => :error, :class => e.class.name, :msg => e.message, :bt => e.backtrace}
               end
               
-              data = Base64.strict_encode64(Marshal.dump(:type => :answer, :id => obj[:id], :answer => res))
+              data = Base64.strict_encode64(Marshal.dump(:type => :answer, :id => id, :answer => res))
               @io_out.puts(data)
             end
-          elsif obj[:type] == :answer and id = obj[:id].to_i
+          elsif obj[:type] == :answer
             debug "Answer #{id} saved.\n" if @debug
             @answers[id] << obj[:answer]
           else
@@ -367,6 +385,11 @@ class Ruby_process
           end
         end
       rescue => e
+        if @debug
+          debug "Error while listening: #{e.inspect}"
+          debug e.backtrace.join("\n") + "\n"
+        end
+        
         @listen_err = e
       end
     end

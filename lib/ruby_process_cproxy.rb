@@ -25,19 +25,20 @@ class Ruby_process::Cproxy
   def self.run
     #Increase count of instances that are using Cproxy and set the subproc-object if not already set.
     @@lock.synchronize do
-      @@instances += 1
-      
       #Check if the sub-process is alive.
       if @@subproc and (!@@subproc.alive? or @@subproc.destroyed?)
+        raise "Cant destroy sub-process because instances are running: '#{@@instances}'." if @@instances > 0
         @@subproc.destroy
         @@subproc = nil
       end
       
       #Start a new subprocess if none is defined and active.
       if !@@subproc
-        @@subproc = Ruby_process.new(:title => "cproxy", :debug => false)
+        @@subproc = Ruby_process.new(:title => "ruby_process_cproxy", :debug => false)
         @@subproc.spawn_process
       end
+      
+      @@instances += 1
     end
     
     begin
