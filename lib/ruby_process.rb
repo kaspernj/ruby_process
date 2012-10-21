@@ -3,6 +3,7 @@ require "wref" if !Kernel.const_defined?(:Wref)
 require "tsafe" if !Kernel.const_defined?(:Tsafe)
 require "base64"
 require "thread"
+require "timeout"
 
 #This class can communicate with another Ruby-process. It tries to integrate the work in the other process as seamless as possible by using proxy-objects.
 class Ruby_process
@@ -143,19 +144,33 @@ class Ruby_process
     return nil if self.destroyed?
     debug "Destroying Ruby-process (#{caller}).\n" if @debug
     pid = @pid
+    tries = 0
     
     #Make main kill it and make sure its dead...
     begin
       if @main and @pid
+        tries += 1
         Process.kill("TERM", pid) rescue Errno::ESRCH
         
-        #Ensure the subprocess dies within 5 sec.
-        Thread.new do
-          begin
-            sleep 5
-          ensure
-            Process.kill(9, pid) rescue Errno::ESRCH
+        #Ensure subprocess is dead.
+        begin
+          Timeout.timeout(1) do
+            sleep 0.01
+            
+            loop do
+              begin
+                Process.getpgid(pid)
+                alive = true
+              rescue Errno::ESRCH
+                alive = false
+              end
+              
+              break if !alive
+            end
           end
+        rescue Timeout::Error
+          Process.kill(9, pid) rescue Errno::ESRCH
+          retry
         end
       end
     rescue Errno::ESRCH
@@ -167,6 +182,8 @@ class Ruby_process
       @io_err = nil
       @main = nil
     end
+    
+    return nil
   end
   
   #Returns true if the Ruby process has been destroyed.

@@ -26,7 +26,7 @@ describe "RubyProcess" do
             raise "Expected res2 to be true but it wasnt: '#{res2}'." if res2 != true
             raise "Expected res3 to be false but it wasnt: '#{res3}'." if res3 != false
             
-            print "."
+            #print "."
           end
         end
       end

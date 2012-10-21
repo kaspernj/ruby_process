@@ -1,6 +1,26 @@
 require File.expand_path(File.dirname(__FILE__) + '/spec_helper')
 
 describe "RubyProcess" do
+  it "should be able to do quick in-and-outs without leaking" do
+    ts = []
+    
+    1.upto(2) do |tcount|
+      ts << Thread.new do
+        1.upto(10) do
+          Ruby_process::Cproxy.run do |data|
+            sp = data[:subproc]
+            str = sp.new(:String, "Wee")
+            res1 = str.include?("Kasper")
+          end
+        end
+      end
+    end
+    
+    ts.each do |thread|
+      thread.join
+    end
+  end
+  
   it "should be able to do basic stuff" do
     require "stringio"
     
@@ -44,7 +64,7 @@ describe "RubyProcess" do
             raise "Expected res2 to be true but it wasnt: '#{res2}'." if res2 != true
             raise "Expected res3 to be false but it wasnt: '#{res3}'." if res3 != false
             
-            print tcount
+            #print tcount
           end
         end
       end
@@ -53,8 +73,29 @@ describe "RubyProcess" do
     count = 0
     ts.each do |t|
       count += 1
-      puts "Thread #{count}"
+      #puts "Thread #{count}"
       t.join
     end
+  end
+  
+  it "should not leak" do
+    str = "kasper"
+    str = nil
+    sleep 0.1
+    GC.start
+    sleep 0.1
+    
+    count_objs = 0
+    ObjectSpace.each_object(Ruby_process) do |obj|
+      count_objs += 1
+    end
+    
+    count_proxy_objs = 0
+    ObjectSpace.each_object(Ruby_process::Proxyobj) do |obj|
+      count_proxy_objs += 1
+    end
+    
+    raise "Expected 5 or less 'Ruby_process' to be left but it wasnt like that: #{count_objs} (proxy objects: #{count_proxy_objs})" if count_objs > 5
+    raise "Expected 0 constants to be left on cproxy." if !Ruby_process::Cproxy.constants.empty?
   end
 end

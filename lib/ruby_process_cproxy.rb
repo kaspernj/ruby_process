@@ -1,5 +1,3 @@
-require "monitor"
-
 #This class is used to seamlessly use leaky classes without working through 'Ruby_process'.
 #===Examples
 #  Ruby_process::Cproxy.run do |data|
@@ -13,7 +11,7 @@ require "monitor"
 #    raise "REXML shouldnt be defined?" if Kernel.const_defined?(:REXML)
 class Ruby_process::Cproxy
   #Lock is used to to create new Ruby-process-instances and not doing double-counts.
-  @@lock = Monitor.new
+  @@lock = Mutex.new
   
   #Counts how many instances are using the Cproxy-module. This way it can be safely unset once no-body is using it again.
   @@instances = 0
@@ -54,6 +52,7 @@ class Ruby_process::Cproxy
             @@subproc.destroy
           ensure
             @@subproc = nil
+            self.destroy_loaded_constants
           end
         end
       end
@@ -64,6 +63,13 @@ class Ruby_process::Cproxy
   def self.subproc
     raise "CProxy process not set for some reason?" if !@@subproc
     return @@subproc
+  end
+  
+  #Destroy all loaded sub-process-constants.
+  def self.destroy_loaded_constants
+    self.constants.each do |constant|
+      self.__send__(:remove_const, constant)
+    end
   end
   
   #Creates the new constant under the 'Ruby_process::Cproxy'-namespace.
@@ -87,20 +93,13 @@ class Ruby_process::Cproxy
       def self.new(*args, &blk)
         name_match = self.name.to_s.match(/^Ruby_process::Cproxy::(.+)$/)
         class_name = name_match[1]
-        
-        subproc = Ruby_process::Cproxy.subproc
-        obj = subproc.new(class_name, *args, &blk)
-        
-        return obj
+        return Ruby_process::Cproxy.subproc.new(class_name, *args, &blk)
       end
       
       def self.method_missing(method_name, *args, &blk)
         name_match = self.name.to_s.match(/^Ruby_process::Cproxy::(.+)$/)
         class_name = name_match[1]
-        
-        subproc = Ruby_process::Cproxy.subproc
-        
-        return subproc.static(class_name, method_name, *args, &blk)
+        return Ruby_process::Cproxy.subproc.static(class_name, method_name, *args, &blk)
       end
     })
   end

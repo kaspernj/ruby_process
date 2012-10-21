@@ -19,6 +19,11 @@ class Ruby_process::Proxyobj
     return Marshal.load(@args[:rp].send(:cmd => :obj_marshal, :id => @args[:id]))
   end
   
+  #Unsets all data on the object.
+  def __rp_destroy
+    @args = nil
+  end
+  
   #Overwrite certain convert methods.
   RUBY_METHODS = [:to_i, :to_s, :to_str, :to_f]
   RUBY_METHODS.each do |method_name|
