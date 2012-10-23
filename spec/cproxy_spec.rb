@@ -95,7 +95,7 @@ describe "RubyProcess" do
       count_proxy_objs += 1
     end
     
-    raise "Expected 5 or less 'Ruby_process' to be left but it wasnt like that: #{count_objs} (proxy objects: #{count_proxy_objs})" if count_objs > 5
+    raise "Expected 1 or less 'Ruby_process' to be left but it wasnt like that: #{count_objs} (proxy objects: #{count_proxy_objs})" if count_objs > 1
     raise "Expected 0 constants to be left on cproxy." if !Ruby_process::Cproxy.constants.empty?
   end
 end

@@ -20,11 +20,18 @@ describe "RubyProcess" do
   
   it "should be able to pass proxy-objects as arguments." do
     str = $rp.new(:String, "/tmp/somefile")
+    thread_id = Thread.current.__id__
+    write_called = false
+    
     $rp.static(:File, :open, str, "w") do |fp|
+      raise "Expected 'thread_id' to be the same but it wasnt: '#{thread_id}', '#{Thread.current.__id__}'." if thread_id != Thread.current.__id__
       fp.write("Test!")
+      write_called = true
     end
     
-    raise "Unexpected" if File.read(str.__rp_marshal) != "Test!"
+    raise "Expected 'write' on file-pointer to be called, but it wasnt." if !write_called
+    read = File.read(str.__rp_marshal)
+    raise "Unexpected content of file: '#{read}'." if read != "Test!"
   end
   
   it "should be able to write files" do
@@ -140,6 +147,27 @@ describe "RubyProcess" do
   it "should be able to do evals" do
     res = $rp.str_eval("return 10").__rp_marshal
     raise "Unexpected: #{res}" if res != 10
+  end
+  
+  it "should clean itself" do
+    $rp.garbage_collect
+    GC.start
+    $rp.flush_finalized
+    GC.start
+    $rp.flush_finalized
+  end
+  
+  it "should be clean and not leaking" do
+    GC.start
+    $rp.flush_finalized
+    GC.start
+    $rp.flush_finalized
+    
+    answers = $rp.instance_variable_get(:@answers)
+    raise "Expected 0 answers to be present: #{answers}" if !answers.empty?
+    
+    objects = $rp.instance_variable_get(:@objects)
+    raise "Expected 0 objects to be present: #{objects}" if !objects.empty?
   end
   
   it "should be able to destroy itself" do

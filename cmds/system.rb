@@ -29,4 +29,19 @@ class Ruby_process
     
     return nil
   end
+  
+  #Starts garbage-collecting and then flushes the finalized objects to the sub-process. Does the same thing in the sub-process.
+  def garbage_collect
+    GC.start
+    self.flush_finalized
+    send(:cmd => :garbage_collect)
+    return nil
+  end
+  
+  #The sub-process-side execution of 'garbage_collect'.
+  def cmd_garbage_collect(obj)
+    GC.start
+    self.flush_finalized
+    return nil
+  end
 end

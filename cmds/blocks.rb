@@ -2,7 +2,7 @@ class Ruby_process
   #Calls a block by its block-ID with given arguments.
   def cmd_block_call(obj)
     raise "Invalid block-ID: '#{obj}'." if obj[:block_id].to_i <= 0
-    block_ele = @objects[obj[:block_id]]
+    block_ele = @proxy_objs[obj[:block_id]]
     raise "No block by that ID: '#{obj[:block_id]}'." if !block_ele
     raise "Not a block? '#{block_ele.class.name}'." if !block_ele.respond_to?(:call)
     debug "Calling block #{obj[:block_id]}: #{obj}\n" if @debug
@@ -11,7 +11,11 @@ class Ruby_process
     raise "No ':answer_id' was given (#{obj})." if !answer_id
     
     if answer = @answers[answer_id]
-      answer.push(:type => :proxy_block_call, :block => block_ele, :args => read_args(obj[:args]))
+      #Use a queue to sleep thread until the block has been executed.
+      queue = Queue.new
+      answer.push(:type => :proxy_block_call, :block => block_ele, :args => read_args(obj[:args]), :queue => queue)
+      res = queue.pop
+      raise "Expected true but didnt get that: '#{res}'." if res != true
     else
       block_ele.call(*read_args(obj[:args]))
     end

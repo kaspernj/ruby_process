@@ -142,6 +142,7 @@ class Ruby_process
   #First tries to make the sub-process exit gently. Then kills it with "TERM" and 9 afterwards to make sure its dead. If 'spawn_process' is given a block, this method is automatically ensured after the block is run.
   def destroy
     return nil if self.destroyed?
+    
     debug "Destroying Ruby-process (#{caller}).\n" if @debug
     pid = @pid
     tries = 0
@@ -217,14 +218,14 @@ class Ruby_process
     #Parse block.
     if block
       block_proxy_res = self.send(:cmd => :spawn_proxy_block, :id => block.__id__, :answer_id => id)
-      raise "No block ID was returned?" if !block_proxy_res[:id]
-      raise "Invalid block-ID: '#{block_proxy_res[:id]}'." if block_proxy_res[:id].to_i <= 0
-      @proxy_objs[block_proxy_res[:id]] = block
-      @proxy_objs_ids[block.__id__] = block_proxy_res[:id]
-      @objects[block_proxy_res[:id]] = block
-      ObjectSpace.define_finalizer(block_proxy_res, self.method(:proxyobj_finalizer))
+      block_proxy_res_id = block_proxy_res[:id]
+      raise "No block ID was returned?" if !block_proxy_res_id
+      raise "Invalid block-ID: '#{block_proxy_res_id}'." if block_proxy_res_id.to_i <= 0
+      @proxy_objs[block_proxy_res_id] = block
+      @proxy_objs_ids[block.__id__] = block_proxy_res_id
+      ObjectSpace.define_finalizer(block, self.method(:proxyobj_finalizer))
       obj[:block] = {
-        :id => block_proxy_res[:id],
+        :id => block_proxy_res_id,
         :arity => block.arity
       }
     end
@@ -237,10 +238,15 @@ class Ruby_process
       :type => :send,
       :obj => obj
     ))
-    @answers[id] = Queue.new
-    @io_out.puts(line)
     
-    return answer_read(id)
+    begin
+      @answers[id] = Queue.new
+      @io_out.puts(line)
+      return answer_read(id)
+    ensure
+      #Be sure that the answer is actually deleted to avoid memory-leaking.
+      @answers.delete(id)
+    end
   end
   
   #Returns true if the child process is still running. Otherwise false.
@@ -288,7 +294,7 @@ class Ruby_process
     end
     
     @proxy_objs_unsets.delete(id)
-    proxy_obj = Ruby_process::Proxyobj.new(:rp => self, :id => id, :pid => pid)
+    proxy_obj = Ruby_process::Proxyobj.new(self, id, pid)
     @proxy_objs[id] = proxy_obj
     @proxy_objs_ids[proxy_obj.__id__] = id
     ObjectSpace.define_finalizer(proxy_obj, self.method(:proxyobj_finalizer))
@@ -298,9 +304,11 @@ class Ruby_process
   
   #Returns the saved proxy-object by the given ID. Raises error if it doesnt exist.
   def proxyobj_object(id)
-    obj = @objects[id]
-    raise "No object by that ID: '#{id}' (#{@objects})." if !obj
-    return obj
+    if obj = @objects[id]
+      return obj
+    end
+    
+    raise "No object by that ID: '#{id}' (#{@objects})."
   end
   
   #Method used for detecting garbage-collected proxy-objects. This way we can also free references to them in the other process, so it doesnt run out of memory.
@@ -320,45 +328,45 @@ class Ruby_process
   
   #Waits for an answer to appear in the answers-hash. Then deletes it from hash and returns it.
   def answer_read(id)
-    begin
-      loop do
-        debug "Waiting for answer #{id}\n" if @debug
-        answer = @answers[id].pop
-        debug "Returning answer #{id}\n" if @debug
-        
-        if answer.is_a?(Hash)
-          if answer[:type] == :error and answer.key?(:class) and answer.key?(:msg) and answer.key?(:bt)
-            begin
-              raise "#{answer[:class]}: #{answer[:msg]}"
-            rescue => e
-              bt = []
-              answer[:bt].each do |btline|
-                bt << "(#{@pid}): #{btline}"
-              end
-              
-              bt += e.backtrace
-              e.set_backtrace(bt)
-              raise e
+    loop do
+      debug "Waiting for answer #{id}\n" if @debug
+      answer = @answers[id].pop
+      debug "Returning answer #{id}\n" if @debug
+      
+      if answer.is_a?(Hash) and type = answer[:type]
+        if type == :error and class_str = answer[:class] and msg = answer[:msg] and bt_orig = answer[:bt]
+          begin
+            raise "#{class_str}: #{msg}"
+          rescue => e
+            bt = []
+            bt_orig.each do |btline|
+              bt << "(#{@pid}): #{btline}"
             end
-          elsif answer[:type] == :proxy_obj and answer.key?(:id) and answer.key?(:pid)
-            return proxyobj_get(answer[:id], answer[:pid])
-          elsif answer[:type] == :proxy_block_call
-            answer[:block].call(*answer[:args])
-          else
-            return answer
+            
+            bt += e.backtrace
+            e.set_backtrace(bt)
+            raise e
           end
+        elsif type == :proxy_obj and id = answer[:id] and pid = answer[:pid]
+          return proxyobj_get(id, pid)
+        elsif type == :proxy_block_call and block = answer[:block] and args = answer[:args] and queue = answer[:queue]
+          #Calls the block. This is used to call the block from the same thread that the answer is being read from. This can cause problems in Hayabusa, that uses thread-variables to determine output and such.
+          block.call(*args)
+          
+          #Tells the parent thread that the block has been executed and it should continue.
+          queue << true
         else
           return answer
         end
+      else
+        return answer
       end
-    ensure
-      @answers.delete(id)
     end
     
     raise "This should never be reached."
   end
   
-  #Starts the listen-thread that listens for, and executes, commands.
+  #Starts the listen-thread that listens for, and executes, commands. This is normally automatically called and should not be called manually.
   def start_listen
     @thr_listen = Thread.new do
       begin
@@ -379,11 +387,13 @@ class Ruby_process
           end
           
           id = obj[:id]
+          obj_type = obj[:type]
           
-          if obj[:type] == :send
-            obj[:obj][:send_id] = id
-            
+          if obj_type == :send
             Thread.new do
+              #Hack to be able to do callbacks from same thread when using blocks. This should properly be cleaned a bit up in the future.
+              obj[:obj][:send_id] = id
+              
               begin
                 raise "Object was not a hash." if !obj.is_a?(Hash)
                 raise "No ID was given?" if !id
@@ -396,9 +406,13 @@ class Ruby_process
               data = Base64.strict_encode64(Marshal.dump(:type => :answer, :id => id, :answer => res))
               @io_out.puts(data)
             end
-          elsif obj[:type] == :answer
-            debug "Answer #{id} saved.\n" if @debug
-            @answers[id] << obj[:answer]
+          elsif obj_type == :answer
+            if answer_queue = @answers[id]
+              debug "Answer #{id} saved.\n" if @debug
+              answer_queue << obj[:answer]
+            elsif @debug
+              debug "No answer-queue could be found for ID #{id}."
+            end
           else
             raise "Unknown object: '#{obj}'."
           end

@@ -31,8 +31,8 @@ class Ruby_process
     
     #The object is a proxy-obj - just return its arguments that contains the true 'my_pid'.
     if obj.is_a?(Ruby_process::Proxyobj)
-      debug "Returning from proxy-obj: (ID: #{obj.args[:id]}, PID: #{obj.args[:pid]}).\n" if @debug
-      return {:type => :proxy_obj, :id => obj.args[:id], :pid => obj.args[:pid]}
+      debug "Returning from proxy-obj: (ID: #{obj.args[:id]}, PID: #{obj.__rp_pid}).\n" if @debug
+      return {:type => :proxy_obj, :id => obj.__rp_id, :pid => obj.__rp_pid}
     end
     
     #Check if object has already been spawned. If not: spawn id. Then returns hash for it.
