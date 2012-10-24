@@ -5,11 +5,11 @@
 
 Gem::Specification.new do |s|
   s.name = %q{ruby_process}
-  s.version = "0.0.7"
+  s.version = "0.0.8"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Kasper Johansen"]
-  s.date = %q{2012-10-16}
+  s.date = %q{2012-10-24}
   s.description = %q{A framework for spawning and communicating with other Ruby-processes}
   s.email = %q{k@spernj.org}
   s.extra_rdoc_files = [
@@ -42,6 +42,7 @@ Gem::Specification.new do |s|
     "scripts/ruby_process_script.rb",
     "spec/cproxy_spec.rb",
     "spec/hard_load_spec.rb",
+    "spec/leaks_spec.rb",
     "spec/ruby_process_spec.rb",
     "spec/spec_helper.rb"
   ]
