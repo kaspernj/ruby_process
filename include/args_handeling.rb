@@ -16,8 +16,10 @@ class Ruby_process
       
       return newh
     elsif @args_allowed.index(args.class) != nil
+      debug "Allowing type '#{args.class}' as an argument: '#{args}'.\n" if @debug
       return args
     else
+      debug "Not allowing type '#{args.class}' as an argument - proxy object will be used.\n" if @debug
       return handle_return_object(args)
     end
   end
