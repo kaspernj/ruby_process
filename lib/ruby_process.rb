@@ -178,9 +178,16 @@ class Ruby_process
       #Process is already dead - ignore.
     ensure
       @pid = nil
+      
+      @io_out.close if @io_out && !@io_out.closed?
       @io_out = nil
+      
+      @io_in.close if @io_in && !@io_in.closed?
       @io_in = nil
+      
+      @io_err if @io_err && !@io_err.closed?
       @io_err = nil
+      
       @main = nil
     end
     
