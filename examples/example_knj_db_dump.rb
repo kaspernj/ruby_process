@@ -23,17 +23,17 @@ threads = []
   threads << Thread.new do
     begin
       thread_tables = tables.shift(tables_per_thread)
-      
-      Ruby_process.new(:debug => true).spawn_process do |rp|
+
+      Ruby_process.new(debug: true).spawn_process do |rp|
         rp.static(:Object, :require, "rubygems")
         rp.static(:Object, :require, "knjrbfw")
-        
+
         fpath = "/tmp/dbdump_#{i}.sql"
-        
+
         thread_tables.each do |thread_db|
           rp_db = rp.new("Knj::Db", $db_settings)
-          rp_dump = rp.new("Knj::Db::Dump", :db => rp_db, :tables => thread_tables)
-          
+          rp_dump = rp.new("Knj::Db::Dump", db: rp_db, tables: thread_tables)
+
           rp.static(:File, :open, fpath, "w") do |rp_fp|
             print "#{i} dumping #{thread_db}\n"
             rp_dump.dump(rp_fp)
