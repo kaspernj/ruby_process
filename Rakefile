@@ -14,7 +14,7 @@ require 'rake'
 require 'jeweler'
 Jeweler::Tasks.new do |gem|
   # gem is a Gem::Specification... see http://docs.rubygems.org/read/chapter/20 for more options
-  gem.name = "ruby_process"
+  gem.name = "RubyProcess"
   gem.homepage = "http://github.com/kaspernj/ruby_process"
   gem.license = "MIT"
   gem.summary = %Q{A framework for spawning and communicating with other Ruby-processes}
@@ -43,7 +43,7 @@ Rake::RDocTask.new do |rdoc|
   version = File.exist?('VERSION') ? File.read('VERSION') : ""
 
   rdoc.rdoc_dir = 'rdoc'
-  rdoc.title = "ruby_process #{version}"
+  rdoc.title = "RubyProcess #{version}"
   rdoc.rdoc_files.include('README*')
   rdoc.rdoc_files.include('lib/**/*.rb')
 end

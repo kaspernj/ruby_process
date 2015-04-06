@@ -15,7 +15,7 @@ gem "ruby_process"
 As a block.
 
 ```ruby
-Ruby_process::Cproxy.run do |data|
+RubyProcess::ClassProxy.run do |data|
   sp = data[:subproc]
 
   string_in_process = sp.new(:String, "Test")
@@ -26,13 +26,13 @@ end
 As a variable.
 
 ```ruby
-rp = Ruby_process.new(debug: false)
+rp = RubyProcess.new(debug: false)
 rp.spawn_process
 test_string = rp.new(:String, "Test")
 ```
 
 
-## Contributing to ruby_process
+## Contributing to RubyProcess
 
 * Check out the latest master to make sure the feature hasn't been implemented or the bug hasn't been fixed yet.
 * Check out the issue tracker to make sure someone already hasn't requested it and/or contributed it.

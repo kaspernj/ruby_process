@@ -1,4 +1,4 @@
-class Ruby_process
+class RubyProcess
   #Returns a numeric value like a integer. This methods exists because it isnt possible to do: "Integer.new(5)".
   #===Examples
   # proxy_int = rp.numeric(5)

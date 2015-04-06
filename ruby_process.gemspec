@@ -4,7 +4,7 @@
 # -*- encoding: utf-8 -*-
 
 Gem::Specification.new do |s|
-  s.name = "ruby_process"
+  s.name = "RubyProcess"
   s.version = "0.0.9"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
@@ -43,7 +43,7 @@ Gem::Specification.new do |s|
     "spec/cproxy_spec.rb",
     "spec/hard_load_spec.rb",
     "spec/leaks_spec.rb",
-    "spec/ruby_process_spec.rb",
+    "spec/RubyProcess_spec.rb",
     "spec/spec_helper.rb"
   ]
   s.homepage = "http://github.com/kaspernj/ruby_process"

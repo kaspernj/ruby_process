@@ -25,7 +25,7 @@ end
 debug = true if ARGV.index("--debug") != nil
 raise "No PID given of parent process." if !pid
 
-rps = Ruby_process.new(
+rps = RubyProcess.new(
   in: $stdin,
   out: $stdout,
   err: $stderr,
