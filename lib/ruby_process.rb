@@ -147,7 +147,7 @@ class RubyProcess
 
   #First tries to make the sub-process exit gently. Then kills it with "TERM" and 9 afterwards to make sure its dead. If 'spawn_process' is given a block, this method is automatically ensured after the block is run.
   def destroy
-    return nil if self.destroyed?
+    return nil if destroyed?
 
     debug "Destroying Ruby-process (#{caller}).\n" if @debug
     pid = @pid
@@ -272,15 +272,15 @@ class RubyProcess
     end
   end
 
-  private
+private
 
   #Raises an error if the subprocess is no longer alive.
   def alive_check!
     raise "Has been destroyed." if self.destroyed?
-    raise "No 'io_out'." if !@io_out
-    raise "No 'io_in'." if !@io_in
+    raise "No 'io_out'." unless @io_out
+    raise "No 'io_in'." unless @io_in
     raise "'io_in' was closed." if @io_in.closed?
-    raise "No listen thread." if !@thr_listen
+    raise "No listen thread." unless @thr_listen
     #raise "Listen thread wasnt alive?" if !@thr_listen.alive?
 
     return nil
@@ -329,11 +329,11 @@ class RubyProcess
     debug "Finalized #{id}\n" if @debug
     proxy_id = @proxy_objs_ids[id]
 
-    if !proxy_id
-      debug "No such ID in proxy objects IDs hash: '#{id}'.\n" if @debug
-    else
+    if proxy_id
       @proxy_objs_unsets << proxy_id
       debug "Done finalizing #{id}\n" if @debug
+    else
+      debug "No such ID in proxy objects IDs hash: '#{id}'.\n" if @debug
     end
 
     return nil
@@ -433,7 +433,7 @@ class RubyProcess
       rescue => e
         if @debug
           debug "Error while listening: #{e.inspect}"
-          debug e.backtrace.join("\n") + "\n"
+          debug "#{e.backtrace.join("\n")}\n"
         end
 
         @listen_err = e
@@ -443,7 +443,7 @@ class RubyProcess
 
   #Starts the listen thread that outputs the 'stderr' for the other process on this process's 'stderr'.
   def start_listen_errors
-    return nil if !@io_err
+    return nil unless @io_err
 
     @thr_err = Thread.new do
       begin

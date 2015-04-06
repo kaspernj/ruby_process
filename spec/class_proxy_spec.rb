@@ -39,45 +39,13 @@ describe "RubyProcess" do
     end
   end
 
-  it "should be able to do multiple calls at once" do
-    ts = []
-
-    0.upto(9) do |tcount|
-      ts << Thread.new do
-        RubyProcess::ClassProxy.run do |data|
-          sp = data[:subproc]
-          sp.new(:String, "Wee")
-
-          1.upto(250) do
-            str = sp.new(:String, "Kasper Johansen")
-
-            str.__rp_marshal.should include "Kasper"
-            str << " More"
-
-            str.__rp_marshal.should include "Johansen"
-            str << " Even more"
-
-            str.__rp_marshal.should_not include "Christina"
-            str << " Much more"
-          end
-        end
-      end
-    end
-
-    count = 0
-    ts.each do |t|
-      count += 1
-      #puts "Thread #{count}"
-      t.join
-    end
-  end
-
   it "should not leak" do
     str = "kasper"
     str = nil
-    sleep 0.1
+    sleep 0.2
+    GC.enable
     GC.start
-    sleep 0.1
+    sleep 0.2
 
     count_objs = 0
     ObjectSpace.each_object(RubyProcess) do |obj|
