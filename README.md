@@ -2,6 +2,25 @@
 
 Start another Ruby process and manipulate it almost seamlessly.
 
+## Example
+
+The CSV lib will not be loaded in the main process and the writing of the file will also take place in another process.
+
+```ruby
+require "rubygems"
+require "ruby_process"
+
+RubyProcess.new.spawn_process do |rp|
+  rp.static(:Object, :require, "csv")
+
+  rp.static(:CSV, :open, "test.csv", "w") do |csv|
+    csv << ["ID", "Name"]
+    csv << [1, "Kasper"]
+  end
+end
+```
+
+
 ## Install
 
 Add to your Gemfile and bundle.
@@ -12,14 +31,25 @@ gem "ruby_process"
 
 ## Usage
 
-As a block.
+With a block.
+
+```ruby
+RubyProcess.new.spawn_process do |rp|
+  rp.static(:File, :open, "some_file", "w") do |fp|
+    fp.write("Test!")
+  end
+end
+```
+
+Almost seamless mode with ClassProxy.
 
 ```ruby
 RubyProcess::ClassProxy.run do |data|
   sp = data[:subproc]
-
-  string_in_process = sp.new(:String, "Test")
-  string_in_process.__rp_marshall #=> "Test"
+  sp.static(:Object, :require, "tempfile")
+  
+  # Tempfile will be created in the subprocess and not in the current process.
+  temp_file = RubyProcess::ClassProxy::Tempfile("temp")
 end
 ```
 
@@ -29,6 +59,25 @@ As a variable.
 rp = RubyProcess.new(debug: false)
 rp.spawn_process
 test_string = rp.new(:String, "Test")
+```
+
+Calling static methods on classes.
+
+```ruby
+rp.static(:File, :open, "file_path", "w")
+```
+
+Spawning new objects.
+
+```ruby
+file = rp.new(:File, "file_path", "r")
+```
+
+Serializing objects back to the main process.
+
+```ruby
+rp.static(:File, :size, "file_path") #=> RubyProcess::ProxyObject
+rp.static(:File, :size, "file_path").__rp_marshall #=> 2048
 ```
 
 
