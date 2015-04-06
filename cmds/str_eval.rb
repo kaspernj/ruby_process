@@ -3,9 +3,9 @@ class Ruby_process
   #===Examples
   # rp.str_eval("return 10").__rp_marshal #=> 10
   def str_eval(str)
-    send(:cmd => :str_eval, :str => str)
+    send(cmd: :str_eval, str: str)
   end
-  
+
   #Process-method for 'str_eval'.
   def cmd_str_eval(obj)
     #Lamda is used here because 'return' might be used in evalled code and thereby return an unhandeled object.
