@@ -7,9 +7,8 @@ describe "RubyProcess" do
     1.upto(2) do |tcount|
       ts << Thread.new do
         1.upto(10) do
-          RubyProcess::ClassProxy.run do |data|
-            sp = data[:subproc]
-            str = sp.new(:String, "Wee")
+          RubyProcess::ClassProxy.run do
+            str = RubyProcess::ClassProxy.subproc.new(:String, "Wee")
             str.__rp_marshal.should eq "Wee"
           end
         end
@@ -24,9 +23,9 @@ describe "RubyProcess" do
   it "should be able to do basic stuff" do
     require "stringio"
 
-    RubyProcess::ClassProxy.run do |data|
-      data[:subproc].static(:Object, :require, "rubygems")
-      data[:subproc].static(:Object, :require, "rexml/document")
+    RubyProcess::ClassProxy.run do
+      RubyProcess::ClassProxy.subproc.static(:Object, :require, "rubygems")
+      RubyProcess::ClassProxy.subproc.static(:Object, :require, "rexml/document")
 
       doc = RubyProcess::ClassProxy::REXML::Document.new
       doc.add_element("test")
@@ -39,25 +38,41 @@ describe "RubyProcess" do
     end
   end
 
-  it "should not leak" do
-    str = "kasper"
+  it "prepares for leak test by spawning a ton of string objects" do
     str = nil
-    sleep 0.2
+
+    1000.times do
+      str = "#{Digest::MD5.hexdigest(Time.now.to_f.to_s)}".clone
+      str = nil
+    end
+
+    sleep 0.1
     GC.enable
     GC.start
-    sleep 0.2
+    sleep 0.1
+  end
 
-    count_objs = 0
+  it "has cleaned up and process objects" do
+    sleep 0.1
+    GC.enable
+    GC.start
+    sleep 0.1
+
+    count_processes = 0
     ObjectSpace.each_object(RubyProcess) do |obj|
-      count_objs += 1
+      puts "Found RubyProcess: (destroyed: #{obj.destroyed?})"
+      count_processes += 1
     end
+
+    count_processes.should eq 0
 
     count_proxy_objs = 0
     ObjectSpace.each_object(RubyProcess::ProxyObject) do |obj|
       count_proxy_objs += 1
     end
 
-    count_objs.should be <= 1
+    count_proxy_objs.should eq 0
+
     RubyProcess::ClassProxy.constants.empty?.should eq true
   end
 end

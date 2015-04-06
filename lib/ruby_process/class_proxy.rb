@@ -43,7 +43,6 @@ class RubyProcess::ClassProxy
 
         if @@instances <= 0
           begin
-            puts "DESTROY SUBPROCESS"
             @@subproc.destroy
           ensure
             @@subproc = nil
@@ -56,7 +55,7 @@ class RubyProcess::ClassProxy
 
   #Returns the 'RubyProcess'-object or raises an error if it has not been set.
   def self.subproc
-    raise "CProxy process not set for some reason?" unless @@subproc
+    raise "ClassProxy process not set for some reason?" unless @@subproc
     return @@subproc
   end
 
@@ -71,7 +70,7 @@ class RubyProcess::ClassProxy
   def self.const_missing(name)
     RubyProcess::ClassProxy.load_class(self, name) unless const_defined?(name)
     raise "Still not created on const: '#{name}'." unless const_defined?(name)
-    return self.const_get(name)
+    return const_get(name)
   end
 
   #Loads a new class to the given constants namespace for recursive creating of missing classes.

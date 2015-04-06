@@ -153,6 +153,8 @@ class RubyProcess
     pid = @pid
     tries = 0
 
+    destroy_proxy_objects
+
     #Make main kill it and make sure its dead...
     begin
       if @main && @pid
@@ -236,7 +238,7 @@ class RubyProcess
       raise "Invalid block-ID: '#{block_proxy_res_id}'." if block_proxy_res_id.to_i <= 0
       @proxy_objs[block_proxy_res_id] = block
       @proxy_objs_ids[block.__id__] = block_proxy_res_id
-      ObjectSpace.define_finalizer(block, self.method(:proxyobj_finalizer))
+      ObjectSpace.define_finalizer(block, method(:proxyobj_finalizer))
       obj[:block] = {
         id: block_proxy_res_id,
         arity: block.arity
@@ -310,7 +312,7 @@ private
     proxy_obj = RubyProcess::ProxyObject.new(self, id, pid)
     @proxy_objs[id] = proxy_obj
     @proxy_objs_ids[proxy_obj.__id__] = id
-    ObjectSpace.define_finalizer(proxy_obj, self.method(:proxyobj_finalizer))
+    ObjectSpace.define_finalizer(proxy_obj, method(:proxyobj_finalizer))
 
     return proxy_obj
   end
@@ -453,6 +455,12 @@ private
       rescue => e
         @listen_err_err = e
       end
+    end
+  end
+
+  def destroy_proxy_objects
+    @proxy_objs.each do |id, proxy_object|
+      proxy_object.__rp_destroy if proxy_object.is_a?(RubyProcess::ProxyObject)
     end
   end
 end
