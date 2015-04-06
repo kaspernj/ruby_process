@@ -1,4 +1,4 @@
-class Ruby_process
+class RubyProcess
   #Evalulates the given string in the process.
   #===Examples
   # rp.str_eval("return 10").__rp_marshal #=> 10

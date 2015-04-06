@@ -1,4 +1,4 @@
-require File.expand_path(File.dirname(__FILE__) + '/spec_helper')
+require "spec_helper"
 
 describe "RubyProcess" do
   it "should be able to do quick in-and-outs without leaking" do
@@ -7,7 +7,7 @@ describe "RubyProcess" do
     1.upto(2) do |tcount|
       ts << Thread.new do
         1.upto(10) do
-          Ruby_process::Cproxy.run do |data|
+          RubyProcess::ClassProxy.run do |data|
             sp = data[:subproc]
             str = sp.new(:String, "Wee")
             str.__rp_marshal.should eq "Wee"
@@ -24,11 +24,11 @@ describe "RubyProcess" do
   it "should be able to do basic stuff" do
     require "stringio"
 
-    Ruby_process::Cproxy.run do |data|
+    RubyProcess::ClassProxy.run do |data|
       data[:subproc].static(:Object, :require, "rubygems")
       data[:subproc].static(:Object, :require, "rexml/document")
 
-      doc = Ruby_process::Cproxy::REXML::Document.new
+      doc = RubyProcess::ClassProxy::REXML::Document.new
       doc.add_element("test")
 
       strio = StringIO.new
@@ -44,7 +44,7 @@ describe "RubyProcess" do
 
     0.upto(9) do |tcount|
       ts << Thread.new do
-        Ruby_process::Cproxy.run do |data|
+        RubyProcess::ClassProxy.run do |data|
           sp = data[:subproc]
           sp.new(:String, "Wee")
 
@@ -80,16 +80,16 @@ describe "RubyProcess" do
     sleep 0.1
 
     count_objs = 0
-    ObjectSpace.each_object(Ruby_process) do |obj|
+    ObjectSpace.each_object(RubyProcess) do |obj|
       count_objs += 1
     end
 
     count_proxy_objs = 0
-    ObjectSpace.each_object(Ruby_process::Proxyobj) do |obj|
+    ObjectSpace.each_object(RubyProcess::ProxyObject) do |obj|
       count_proxy_objs += 1
     end
 
     count_objs.should be <= 1
-    Ruby_process::Cproxy.constants.empty?.should eq true
+    RubyProcess::ClassProxy.constants.empty?.should eq true
   end
 end

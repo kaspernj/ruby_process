@@ -2,7 +2,7 @@ require File.expand_path(File.dirname(__FILE__) + '/spec_helper')
 
 describe "RubyProcess" do
   it "should be able to do basic stuff" do
-    Ruby_process::Cproxy.run do |data|
+    RubyProcess::ClassProxy.run do |data|
       sp = data[:subproc]
       sp.new(:String, "Wee")
 

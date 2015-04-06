@@ -1,4 +1,4 @@
-class Ruby_process
+class RubyProcess
   #Closes the process by executing exit.
   def cmd_exit(obj)
     exit
