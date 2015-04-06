@@ -1,11 +1,7 @@
-require File.expand_path(File.dirname(__FILE__) + '/spec_helper')
+require "spec_helper"
 
 describe "RubyProcess" do
-  let(:rp) do
-    rp = Ruby_process.new(debug: false)
-    rp.spawn_process
-    rp
-  end
+  let(:rp) { RubyProcess.new(debug: false).spawn_process }
 
   after do
     rp.destroy unless rp.destroyed?

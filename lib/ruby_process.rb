@@ -2,11 +2,12 @@ require "rubygems"
 require "wref" unless Kernel.const_defined?(:Wref)
 require "tsafe" unless Kernel.const_defined?(:Tsafe)
 require "base64"
+require "string-cases"
 require "thread"
 require "timeout"
 
 #This class can communicate with another Ruby-process. It tries to integrate the work in the other process as seamless as possible by using proxy-objects.
-class Ruby_process
+class RubyProcess
   attr_reader :finalize_count, :pid
 
   #Require all the different commands.
@@ -20,14 +21,19 @@ class Ruby_process
 
   #Autoloader for subclasses.
   def self.const_missing(name)
-    require "#{File.realpath(File.dirname(__FILE__))}/ruby_process_#{name.to_s.downcase}.rb"
-    raise "Still not defined: '#{name}'." if !self.const_defined?(name)
-    return self.const_get(name)
+    file_path = "#{::File.realpath(::File.dirname(__FILE__))}/ruby_process/#{::StringCases.camel_to_snake(name)}.rb"
+
+    if File.exists?(file_path)
+      require file_path
+      return const_get(name) if const_defined?(name)
+    end
+
+    super
   end
 
   #Constructor.
   #===Examples
-  # Ruby_process.new.spawn_process do |rp|
+  # RubyProcess.new.spawn_process do |rp|
   #   str = rp.new(:String, "Kasper")
   # end
   def initialize(args = {})
@@ -66,14 +72,14 @@ class Ruby_process
 
   #Spawns a new process in the same Ruby-inteterpeter as the current one.
   #===Examples
-  # rp = Ruby_process.new.spawn_process
+  # rp = RubyProcess.new.spawn_process
   # rp.str_eval("return 10").__rp_marshal #=> 10
   # rp.destroy
   def spawn_process(args = nil)
     #Used for printing debug-stuff.
     @main = true
 
-    if args and args[:exec]
+    if args && args[:exec]
       cmd = "#{args[:exec]}"
     else
       if !ENV["rvm_ruby_string"].to_s.empty?
@@ -111,7 +117,7 @@ class Ruby_process
     #Start by getting the PID of the process.
     begin
       @pid = self.static(:Process, :pid).__rp_marshal
-      raise "Unexpected PID: '#{@pid}'." if !@pid.is_a?(Fixnum) and !@pid.is_a?(Integer)
+      raise "Unexpected PID: '#{@pid}'." if !@pid.is_a?(Fixnum) && !@pid.is_a?(Integer)
     rescue => e
       self.destroy
       raise e
@@ -149,7 +155,7 @@ class Ruby_process
 
     #Make main kill it and make sure its dead...
     begin
-      if @main and @pid
+      if @main && @pid
         tries += 1
         Process.kill("TERM", pid) rescue Errno::ESRCH
 
@@ -282,7 +288,7 @@ class Ruby_process
 
   #Prints the given string to stderr. Raises error if debugging is not enabled.
   def debug(str_full)
-    raise "Debug not enabled?" if !@debug
+    raise "Debug not enabled?" unless @debug
 
     str_full.each_line do |str|
       if @main
@@ -301,7 +307,7 @@ class Ruby_process
     end
 
     @proxy_objs_unsets.delete(id)
-    proxy_obj = Ruby_process::Proxyobj.new(self, id, pid)
+    proxy_obj = RubyProcess::ProxyObject.new(self, id, pid)
     @proxy_objs[id] = proxy_obj
     @proxy_objs_ids[proxy_obj.__id__] = id
     ObjectSpace.define_finalizer(proxy_obj, self.method(:proxyobj_finalizer))
@@ -402,11 +408,11 @@ class Ruby_process
               obj[:obj][:send_id] = id
 
               begin
-                raise "Object was not a hash." if !obj.is_a?(Hash)
-                raise "No ID was given?" if !id
+                raise "Object was not a hash." unless obj.is_a?(Hash)
+                raise "No ID was given?" unless id
                 res = self.__send__("cmd_#{obj[:obj][:cmd]}", obj[:obj])
               rescue Exception => e
-                raise e if e.is_a?(SystemExit) or e.is_a?(Interrupt)
+                raise e if e.is_a?(SystemExit) || e.is_a?(Interrupt)
                 res = {type: :error, class: e.class.name, msg: e.message, bt: e.backtrace}
               end
 

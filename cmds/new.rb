@@ -1,4 +1,4 @@
-class Ruby_process
+class RubyProcess
   #Spawns a new object in the process and returns a proxy-object for it.
   def new(classname, *args, &block)
     return send(cmd: :new, classname: classname, args: parse_args(args), &block)

@@ -1,4 +1,4 @@
-class Ruby_process
+class RubyProcess
   #Recursivly parses arrays and hashes into proxy-object-hashes.
   def parse_args(args)
     if args.is_a?(Array)
@@ -24,7 +24,7 @@ class Ruby_process
     end
   end
 
-  private
+private
 
   #Returns a special hash instead of an actual object. Some objects will be returned in their normal form (true, false and nil).
   def handle_return_object(obj, pid = @my_pid)
@@ -32,7 +32,7 @@ class Ruby_process
     return obj if obj.is_a?(TrueClass) or obj.is_a?(FalseClass) or obj.is_a?(NilClass)
 
     #The object is a proxy-obj - just return its arguments that contains the true 'my_pid'.
-    if obj.is_a?(Ruby_process::Proxyobj)
+    if obj.is_a?(RubyProcess::ProxyObject)
       debug "Returning from proxy-obj: (ID: #{obj.args[:id]}, PID: #{obj.__rp_pid}).\n" if @debug
       return {type: :proxy_obj, id: obj.__rp_id, pid: obj.__rp_pid}
     end
@@ -64,7 +64,7 @@ class Ruby_process
       end
 
       return newarr
-    elsif args.is_a?(Hash) and args.length == 3 and args[:type] == :proxy_obj and args.key?(:id) and args.key?(:pid)
+    elsif args.is_a?(Hash) && args.length == 3 && args[:type] == :proxy_obj && args.key?(:id) && args.key?(:pid)
       debug "Comparing PID (#{args[:pid]}, #{@my_pid}).\n" if @debug
 
       if args[:pid] == @my_pid

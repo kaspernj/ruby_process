@@ -4,7 +4,7 @@ describe "RubyProcess" do
   it "should be able to clean up after itself when timeout" do
     require "timeout"
 
-    Ruby_process::Cproxy.run do |data|
+    RubyProcess::ClassProxy.run do |data|
       sp = data[:subproc]
 
       begin

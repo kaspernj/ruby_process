@@ -1,19 +1,19 @@
 #This class handels the calling of methods on objects in the other process seamlessly.
-class Ruby_process::Proxyobj
+class RubyProcess::ProxyObject
   #Hash that contains various information about the proxyobj.
   attr_reader :__rp_rp, :__rp_id, :__rp_pid
 
-  #Constructor. This should not be called manually but through a running 'Ruby_process'.
+  #Constructor. This should not be called manually but through a running 'RubyProcess'.
   #===Examples
-  # proxy_obj = rp.new(:String, "Kasper") #=> <Ruby_process::Proxyobj>
-  # proxy_obj = rp.static(:File, :open, "/tmp/somefile") #=> <Ruby_process::Proxyobj>
+  # proxy_obj = rp.new(:String, "Kasper") #=> <RubyProcess::ProxyObject>
+  # proxy_obj = rp.static(:File, :open, "/tmp/somefile") #=> <RubyProcess::ProxyObject>
   def initialize(rp, id, pid)
     @__rp_rp, @__rp_id, @__rp_pid = rp, id, pid
   end
 
   #Returns the object as the real object transfered by using the marshal-lib.
   #===Examples
-  # str = rp.new(:String, "Kasper") #=> <Ruby_process::Proxyobj>
+  # str = rp.new(:String, "Kasper") #=> <RubyProcess::ProxyObject>
   # str.__rp_marshal #=> "Kasper"
   def __rp_marshal
     return Marshal.load(@__rp_rp.send(cmd: :obj_marshal, id: @__rp_id))
@@ -42,8 +42,8 @@ class Ruby_process::Proxyobj
 
   #Proxies all calls to the process-object.
   #===Examples
-  # str = rp.new(:String, "Kasper") #=> <Ruby_process::Proxyobj::1>
-  # length_int = str.length #=> <Ruby_process::Proxyobj::2>
+  # str = rp.new(:String, "Kasper") #=> <RubyProcess::ProxyObject::1>
+  # length_int = str.length #=> <RubyProcess::ProxyObject::2>
   # length_int.__rp_marshal #=> 6
   def method_missing(method, *args, &block)
     debug "Method-missing-args-before: #{args} (#{@__rp_pid})\n" if @debug

@@ -47,7 +47,7 @@ Gem::Specification.new do |s|
     "spec/cproxy_spec.rb",
     "spec/hard_load_spec.rb",
     "spec/leaks_spec.rb",
-    "spec/ruby_process_spec.rb",
+    "spec/RubyProcess_spec.rb",
     "spec/spec_helper.rb"
   ]
   s.homepage = "http://github.com/kaspernj/ruby_process"

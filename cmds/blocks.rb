@@ -1,4 +1,4 @@
-class Ruby_process
+class RubyProcess
   #Calls a block by its block-ID with given arguments.
   def cmd_block_call(obj)
     raise "Invalid block-ID: '#{obj}'." if obj[:block_id].to_i <= 0
