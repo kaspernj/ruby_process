@@ -31,6 +31,8 @@ gem "ruby_process"
 
 ## Usage
 
+### Start a sub process.
+
 With a block.
 
 ```ruby
@@ -47,7 +49,7 @@ Almost seamless mode with ClassProxy.
 RubyProcess::ClassProxy.run do |data|
   sp = data[:subproc]
   sp.static(:Object, :require, "tempfile")
-  
+
   # Tempfile will be created in the subprocess and not in the current process.
   temp_file = RubyProcess::ClassProxy::Tempfile("temp")
 end
@@ -61,11 +63,14 @@ rp.spawn_process
 test_string = rp.new(:String, "Test")
 ```
 
+### Static methods.
 Calling static methods on classes.
 
 ```ruby
 rp.static(:File, :open, "file_path", "w")
 ```
+
+### Spawning objects.
 
 Spawning new objects.
 
@@ -73,11 +78,23 @@ Spawning new objects.
 file = rp.new(:File, "file_path", "r")
 ```
 
-Serializing objects back to the main process.
+### Serializing objects back to the main process.
 
 ```ruby
 rp.static(:File, :size, "file_path") #=> RubyProcess::ProxyObject
 rp.static(:File, :size, "file_path").__rp_marshall #=> 2048
+```
+
+### Making subprocess yield and loop in main process.
+
+```ruby
+array = rp.str_eval("[1, 3, 5, 7]")
+array.class.name #=> "RubyProcess::ProxyObject"
+
+array.each do |number|
+  number.class.name #=> "RubyProcess::ProxyObject"
+  number.__rp_marshal #=> 1 | 3 | 5 | 7
+end
 ```
 
 
