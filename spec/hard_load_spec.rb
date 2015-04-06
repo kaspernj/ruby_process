@@ -22,7 +22,7 @@ describe "RubyProcess" do
             str.__rp_marshal.should_not include "Christina"
             str << " Much more"
 
-            str.__rp_marshal.should eq "Kasper Johansen More Event more Much more"
+            str.__rp_marshal.should eq "Kasper Johansen More Even more Much more"
           end
         end
       end
