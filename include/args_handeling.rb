@@ -29,17 +29,17 @@ private
   #Returns a special hash instead of an actual object. Some objects will be returned in their normal form (true, false and nil).
   def handle_return_object(obj, pid = @my_pid)
     #Dont proxy these objects.
-    return obj if obj.is_a?(TrueClass) or obj.is_a?(FalseClass) or obj.is_a?(NilClass)
+    return obj if obj.is_a?(TrueClass) || obj.is_a?(FalseClass) || obj.is_a?(NilClass)
 
     #The object is a proxy-obj - just return its arguments that contains the true 'my_pid'.
     if obj.is_a?(RubyProcess::ProxyObject)
-      debug "Returning from proxy-obj: (ID: #{obj.args[:id]}, PID: #{obj.__rp_pid}).\n" if @debug
+      debug "Returning from proxy-obj: (ID: #{obj.args.fetch(:id)}, PID: #{obj.__rp_pid}).\n" if @debug
       return {type: :proxy_obj, id: obj.__rp_id, pid: obj.__rp_pid}
     end
 
     #Check if object has already been spawned. If not: spawn id. Then returns hash for it.
     id = obj.__id__
-    @objects[id] = obj if !@objects.key?(id)
+    @objects[id] = obj unless @objects.key?(id)
 
     debug "Proxy-object spawned (ID: #{id}, PID: #{pid}).\n" if @debug
     return {type: :proxy_obj, id: id, pid: pid}

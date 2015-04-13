@@ -1,11 +1,9 @@
-require File.expand_path(File.dirname(__FILE__) + '/spec_helper')
+require "spec_helper"
 
 describe "RubyProcess" do
   it "should be able to do basic stuff" do
-    RubyProcess::ClassProxy.run do |data|
-      sp = data[:subproc]
+    RubyProcess.new.spawn_process do |sp|
       sp.new(:String, "Wee")
-
       ts = []
 
       1.upto(50) do |tcount|

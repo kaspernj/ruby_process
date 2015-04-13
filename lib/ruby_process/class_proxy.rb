@@ -30,13 +30,7 @@ class RubyProcess::ClassProxy
         @@subproc = nil
       end
 
-      #Start a new subprocess if none is defined and active.
-      unless @@subproc
-        subproc = RubyProcess.new(title: "ruby_process_cproxy", debug: false)
-        subproc.spawn_process
-        @@subproc = subproc
-      end
-
+      @@subproc ||= RubyProcess.new(title: "ruby_process_cproxy", debug: false).spawn_process
       @@instances += 1
     end
 
@@ -52,7 +46,7 @@ class RubyProcess::ClassProxy
             @@subproc.destroy
           ensure
             @@subproc = nil
-            self.destroy_loaded_constants
+            destroy_loaded_constants
           end
         end
       end
@@ -61,7 +55,7 @@ class RubyProcess::ClassProxy
 
   #Returns the 'RubyProcess'-object or raises an error if it has not been set.
   def self.subproc
-    raise "CProxy process not set for some reason?" unless @@subproc
+    raise "ClassProxy process not set for some reason?" unless @@subproc
     return @@subproc
   end
 
@@ -76,7 +70,7 @@ class RubyProcess::ClassProxy
   def self.const_missing(name)
     RubyProcess::ClassProxy.load_class(self, name) unless const_defined?(name)
     raise "Still not created on const: '#{name}'." unless const_defined?(name)
-    return self.const_get(name)
+    return const_get(name)
   end
 
   #Loads a new class to the given constants namespace for recursive creating of missing classes.
@@ -85,19 +79,19 @@ class RubyProcess::ClassProxy
       #Use 'const_missing' to auto-create missing sub-constants recursivly.
       def self.const_missing(name)
         RubyProcess::ClassProxy.load_class(self, name) unless const_defined?(name)
-        raise "Still not created on const: '#{name}'." unless self.const_defined?(name)
-        return self.const_get(name)
+        raise "Still not created on const: '#{name}'." unless const_defined?(name)
+        return const_get(name)
       end
 
       #Manipulate 'new'-method return proxy-objects instead of real objects.
       def self.new(*args, &blk)
-        name_match = self.name.to_s.match(/^RubyProcess::ClassProxy::(.+)$/)
+        name_match = self.name.to_s.match(/\ARubyProcess::ClassProxy::(.+)\Z/)
         class_name = name_match[1]
         return RubyProcess::ClassProxy.subproc.new(class_name, *args, &blk)
       end
 
       def self.method_missing(method_name, *args, &blk)
-        name_match = self.name.to_s.match(/^RubyProcess::ClassProxy::(.+)$/)
+        name_match = self.name.to_s.match(/\ARubyProcess::ClassProxy::(.+)\Z/)
         class_name = name_match[1]
         return RubyProcess::ClassProxy.subproc.static(class_name, method_name, *args, &blk)
       end

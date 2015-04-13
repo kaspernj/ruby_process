@@ -3,9 +3,9 @@ source "http://rubygems.org"
 # Example:
 #   gem "activesupport", ">= 2.3.5"
 
-gem "wref"
-gem "tsafe"
-gem "string-cases"
+gem "wref", ">= 0.0.8"
+gem "tsafe", ">= 0.0.11"
+gem "string-cases", ">= 0.0.1"
 
 # Add dependencies to develop your gem here.
 # Include everything needed to run rake, tests, features, etc.
