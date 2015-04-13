@@ -57,7 +57,7 @@ class RubyProcess
     @objects = Tsafe::MonHash.new
 
     #This weak-map holds all proxy objects.
-    @proxy_objs = Wref_map.new
+    @proxy_objs = Wref::Map.new
     @proxy_objs_ids = Tsafe::MonHash.new
     @proxy_objs_unsets = Tsafe::MonArray.new
     @flush_mutex = Mutex.new
@@ -304,7 +304,7 @@ private
 
   #Registers an object ID as a proxy-object on the host-side.
   def proxyobj_get(id, pid = @my_pid)
-    if proxy_obj = @proxy_objs.get!(id)
+    if proxy_obj = @proxy_objs.get(id)
       debug "Reuse proxy-obj (ID: #{id}, PID: #{pid}, fID: #{proxy_obj.args[:id]}, fPID: #{proxy_obj.args[:pid]})\n" if @debug
       return proxy_obj
     end
