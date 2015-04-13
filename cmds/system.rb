@@ -21,8 +21,8 @@ class RubyProcess
 
   #Flushes references to the given object IDs.
   def cmd_flush_finalized(obj)
-    debug "Command-flushing finalized: '#{obj[:ids]}'.\n" if @debug
-    obj[:ids].each do |id|
+    debug "Command-flushing finalized: '#{obj.fetch(:ids)}'.\n" if @debug
+    obj.fetch(:ids).each do |id|
       raise "Unknown ID: '#{id}' (#{id.class.name})." unless @objects.key?(id)
       @objects.delete(id)
     end

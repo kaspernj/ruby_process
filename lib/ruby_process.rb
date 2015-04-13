@@ -5,6 +5,7 @@ require "base64"
 require "string-cases"
 require "thread"
 require "timeout"
+require "rbconfig"
 
 #This class can communicate with another Ruby-process. It tries to integrate the work in the other process as seamless as possible by using proxy-objects.
 class RubyProcess
@@ -17,7 +18,7 @@ class RubyProcess
   end
 
   #Methods for handeling arguments and proxy-objects in arguments.
-  require "#{File.dirname(__FILE__)}/../include/args_handeling.rb"
+  require "#{File.dirname(__FILE__)}/../include/args_handeling"
 
   #Autoloader for subclasses.
   def self.const_missing(name)
@@ -82,8 +83,8 @@ class RubyProcess
     if args && args[:exec]
       cmd = "#{args[:exec]}"
     else
-      if !ENV["rvm_ruby_string"].to_s.empty?
-        cmd = "#{ENV["rvm_ruby_string"]}"
+      if RbConfig::CONFIG["bindir"]
+        cmd = "#{RbConfig::CONFIG["bindir"]}/ruby"
       else
         cmd = "ruby"
       end
@@ -91,7 +92,7 @@ class RubyProcess
 
     cmd << " \"#{File.realpath(File.dirname(__FILE__))}/../scripts/ruby_process_script.rb\" --pid=#{@my_pid}"
     cmd << " --debug" if @args[:debug]
-    cmd << " \"--title=#{@args[:title]}\"" if !@args[:title].to_s.strip.empty?
+    cmd << " \"--title=#{@args[:title]}\"" unless @args[:title].to_s.strip.empty?
 
     #Start process and set IO variables.
     require "open3"
@@ -174,7 +175,7 @@ class RubyProcess
                 alive = false
               end
 
-              break if !alive
+              break unless alive
             end
           end
         rescue Timeout::Error
@@ -245,7 +246,7 @@ class RubyProcess
       }
     end
 
-    flush_finalized unless obj[:cmd] == :flush_finalized
+    flush_finalized unless obj.fetch(:cmd) == :flush_finalized
 
     debug "Sending(#{id}): #{obj}\n" if @debug
     line = Base64.strict_encode64(Marshal.dump(
@@ -283,7 +284,7 @@ private
     raise "No 'io_in'." unless @io_in
     raise "'io_in' was closed." if @io_in.closed?
     raise "No listen thread." unless @thr_listen
-    #raise "Listen thread wasnt alive?" if !@thr_listen.alive?
+    #raise "Listen thread wasnt alive?" unless @thr_listen.alive?
 
     return nil
   end
@@ -319,11 +320,23 @@ private
 
   #Returns the saved proxy-object by the given ID. Raises error if it doesnt exist.
   def proxyobj_object(id)
-    if obj = @objects[id]
-      return obj
+    if RUBY_ENGINE == "jruby"
+      # Because of real concurency, it might take a little while for the object to appear.
+      3.times do
+        if obj = @objects[id]
+          return obj
+        end
+
+        sleep 0.01
+      end
+    else
+      if obj = @objects[id]
+        return obj
+      end
     end
 
-    raise "No object by that ID: '#{id}' (#{@objects})."
+    raise "No key by that ID: '#{id}' (#{id.class.name}) (#{@objects.keys.sort.join(", ")})." unless @objects.key?(id)
+    raise "Object was nil? #{obj} (#{obj.class.name})"
   end
 
   #Method used for detecting garbage-collected proxy-objects. This way we can also free references to them in the other process, so it doesnt run out of memory.
@@ -412,7 +425,7 @@ private
               begin
                 raise "Object was not a hash." unless obj.is_a?(Hash)
                 raise "No ID was given?" unless id
-                res = self.__send__("cmd_#{obj[:obj][:cmd]}", obj[:obj])
+                res = self.__send__("cmd_#{obj.fetch(:obj).fetch(:cmd)}", obj.fetch(:obj))
               rescue Exception => e
                 raise e if e.is_a?(SystemExit) || e.is_a?(Interrupt)
                 res = {type: :error, class: e.class.name, msg: e.message, bt: e.backtrace}
@@ -424,7 +437,7 @@ private
           elsif obj_type == :answer
             if answer_queue = @answers[id]
               debug "Answer #{id} saved.\n" if @debug
-              answer_queue << obj[:answer]
+              answer_queue << obj.fetch(:answer)
             elsif @debug
               debug "No answer-queue could be found for ID #{id}."
             end

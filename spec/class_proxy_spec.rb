@@ -38,41 +38,42 @@ describe "RubyProcess" do
     end
   end
 
-  it "prepares for leak test by spawning a ton of string objects" do
-    str = nil
-
-    1000.times do
-      str = "#{Digest::MD5.hexdigest(Time.now.to_f.to_s)}".clone
+  unless RUBY_ENGINE == "jruby"
+    it "prepares for leak test by spawning a ton of string objects" do
       str = nil
+
+      1000.times do
+        str = "#{Digest::MD5.hexdigest(Time.now.to_f.to_s)}".clone
+        str = nil
+      end
+
+      sleep 0.1
+      GC.enable
+      GC.start
+      sleep 0.1
     end
 
-    sleep 0.1
-    GC.enable
-    GC.start
-    sleep 0.1
-  end
+    it "has cleaned up and process objects" do
+      sleep 0.1
+      GC.enable
+      GC.start
+      sleep 0.1
 
-  it "has cleaned up and process objects" do
-    sleep 0.1
-    GC.enable
-    GC.start
-    sleep 0.1
+      count_processes = 0
+      ObjectSpace.each_object(RubyProcess) do |obj|
+        count_processes += 1
+      end
 
-    count_processes = 0
-    ObjectSpace.each_object(RubyProcess) do |obj|
-      puts "Found RubyProcess: (destroyed: #{obj.destroyed?})"
-      count_processes += 1
+      count_processes.should eq 0
+
+      count_proxy_objs = 0
+      ObjectSpace.each_object(RubyProcess::ProxyObject) do |obj|
+        count_proxy_objs += 1
+      end
+
+      count_proxy_objs.should eq 0
+
+      RubyProcess::ClassProxy.constants.empty?.should eq true
     end
-
-    count_processes.should eq 0
-
-    count_proxy_objs = 0
-    ObjectSpace.each_object(RubyProcess::ProxyObject) do |obj|
-      count_proxy_objs += 1
-    end
-
-    count_proxy_objs.should eq 0
-
-    RubyProcess::ClassProxy.constants.empty?.should eq true
   end
 end
